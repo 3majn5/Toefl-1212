@@ -1,0 +1,6 @@
+{
+  "name": "TOEFL 1212",
+  "description": "Master the complete 1,212 TOEFL iBT vocabulary list extracted from the official 46-page source with multi-directional learning, spaced repetition, and audit tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
