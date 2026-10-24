@@ -80,11 +80,9 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     private val _sessionPhase = MutableStateFlow<SessionPhase>(SessionPhase.Idle)
     val sessionPhase: StateFlow<SessionPhase> = _sessionPhase.asStateFlow()
 
-    // Base raw entries from Room
     val allEntries: StateFlow<List<VocabEntry>> = repository.getAllEntries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Filtered & sorted entries
     val displayEntries: StateFlow<List<VocabEntry>> = combine(
         allEntries,
         searchQuery,
@@ -95,7 +93,6 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         val now = System.currentTimeMillis()
         var filtered = entries
 
-        // Search
         if (query.isNotBlank()) {
             val q = query.trim().lowercase()
             filtered = filtered.filter {
@@ -107,7 +104,6 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Filter
         filtered = when (currentFilter) {
             VocabFilter.ALL -> filtered
             VocabFilter.DUE_REVIEW -> filtered.filter { it.studyStatus != StudyStatus.NEW && it.nextReviewTimestamp <= now }
@@ -119,7 +115,6 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
             VocabFilter.BY_PAGE -> filtered.filter { it.sourcePage == page }
         }
 
-        // Sort
         when (currentSort) {
             VocabSort.BY_NUMBER -> filtered.sortedBy { it.entryNumber }
             VocabSort.ALPHABETICAL -> filtered.sortedBy { it.headword.lowercase() }
@@ -215,154 +210,93 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun fetchDictionaryForEntry(entry: VocabEntry) {
+    fun fetchOnlineDictionary(entry: VocabEntry) {
         viewModelScope.launch {
             _isDictionaryLoading.value = true
             _dictionaryMessage.value = null
             val result = repository.fetchOnlineDictionary(entry)
             _isDictionaryLoading.value = false
             if (result.isSuccess) {
-                val data = result.getOrNull()
-                val exCount = data?.examples?.size ?: 0
-                _dictionaryMessage.value = "Connected to dictionary: $exCount authentic examples retrieved"
-                _selectedEntry.value = _selectedEntry.value?.let { current ->
-                    if (current.entryNumber == entry.entryNumber) {
-                        val combined = ((data?.examples ?: emptyList()) + current.exampleSentence).filter { s -> s.isNotBlank() }.distinct()
-                        val combinedSynonyms = ((data?.synonyms ?: emptyList()) + current.dictionarySynonyms + current.definitions).filter { s -> s.isNotBlank() && s.lowercase() != current.headword.lowercase() }.distinct()
-                        current.copy(
-                            dictionaryExamples = combined,
-                            dictionaryDefinitions = data?.definitions ?: current.dictionaryDefinitions,
-                            dictionarySynonyms = combinedSynonyms,
-                            phonetic = data?.phonetic ?: current.phonetic
-                        )
-                    } else current
-                }
+                _dictionaryMessage.value = "Updated from Wiktionary & Datamuse!"
+                _selectedEntry.value = repository.getEntryByNumberDirect(entry.entryNumber)
             } else {
-                _dictionaryMessage.value = "Using curated academic examples (${result.exceptionOrNull()?.message ?: "Offline"})"
+                _dictionaryMessage.value = "Dictionary lookup failed. Check connection."
             }
         }
     }
 
-    fun clearDictionaryMessage() {
-        _dictionaryMessage.value = null
-    }
-
-    // Daily Learning Workflow session starter
     fun startDailySession() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            val dueWords = repository.getDueEntries(now).take(15)
+            val due = repository.getDueEntries(now)
             val newWords = repository.getNewEntries(_dailyGoal.value)
+            val sessionPool = (due + newWords).distinctBy { it.entryNumber }
 
-            val sessionEntries = (dueWords + newWords).distinctBy { it.entryNumber }
-            if (sessionEntries.isEmpty()) {
-                // If nothing due or new, take first unmastered or random words
-                val fallback = allEntries.value.filter { it.studyStatus != StudyStatus.MASTERED }.take(_dailyGoal.value)
-                setupSession(fallback)
+            if (sessionPool.isNotEmpty()) {
+                _sessionPhase.value = SessionPhase.IntroNew(0, sessionPool)
             } else {
-                setupSession(sessionEntries)
+                val fallbackPool = allEntries.value.shuffled().take(_dailyGoal.value)
+                _sessionPhase.value = SessionPhase.IntroNew(0, fallbackPool)
             }
         }
     }
 
-    // Dedicated Practice mode session starter
-    fun startPracticeMode(direction: LearningDirection, count: Int = 10, pageFilter: Int? = null) {
-        viewModelScope.launch {
-            val pool = if (pageFilter != null) {
-                allEntries.value.filter { it.sourcePage == pageFilter }
-            } else {
-                allEntries.value
-            }
-            val selected = pool.shuffled().take(count)
-            val questions = selected.map { target ->
-                repository.createQuestion(target, allEntries.value, direction)
-            }
-            _sessionPhase.value = SessionPhase.Quiz(
-                currentIndex = 0,
-                questions = questions,
-                userAnswers = mutableMapOf()
-            )
-        }
-    }
-
-    // Start practice for a single word
     fun startSingleWordPractice(entry: VocabEntry) {
-        val directions = listOf(
-            LearningDirection.RECOGNITION,
-            LearningDirection.REVERSE_RECALL,
-            LearningDirection.SPELLING,
-            LearningDirection.CONTEXT,
-            LearningDirection.SYNONYM,
-            LearningDirection.LISTENING
-        )
-        val questions = directions.map { dir ->
-            repository.createQuestion(entry, allEntries.value, dir)
+        val pool = allEntries.value
+        val questions = LearningDirection.values().map { dir ->
+            repository.createQuestion(entry, pool, dir)
         }
-        _sessionPhase.value = SessionPhase.Quiz(
-            currentIndex = 0,
-            questions = questions,
-            userAnswers = mutableMapOf()
-        )
+        _sessionPhase.value = SessionPhase.Quiz(0, questions, mutableMapOf())
     }
 
-    private fun setupSession(entries: List<VocabEntry>) {
-        if (entries.isEmpty()) return
-        // Phase 1: Intro new words
-        _sessionPhase.value = SessionPhase.IntroNew(currentIndex = 0, entries = entries)
+    fun startDirectionPractice(direction: LearningDirection, count: Int = 10) {
+        val pool = allEntries.value
+        if (pool.isEmpty()) return
+        val targets = pool.shuffled().take(count)
+        val questions = targets.map { target ->
+            repository.createQuestion(target, pool, direction)
+        }
+        _sessionPhase.value = SessionPhase.Quiz(0, questions, mutableMapOf())
     }
 
-    fun nextIntroWord() {
+    fun advanceIntroCard() {
         val current = _sessionPhase.value
         if (current is SessionPhase.IntroNew) {
             if (current.currentIndex + 1 < current.entries.size) {
                 _sessionPhase.value = current.copy(currentIndex = current.currentIndex + 1)
             } else {
-                // Move to Quiz phase with mixed questions
-                val directions = listOf(
-                    LearningDirection.REVERSE_RECALL,
-                    LearningDirection.RECOGNITION,
-                    LearningDirection.CONTEXT,
-                    LearningDirection.SYNONYM,
-                    LearningDirection.SPELLING
-                )
-                val questions = current.entries.mapIndexed { idx, target ->
-                    val dir = directions[idx % directions.size]
-                    repository.createQuestion(target, allEntries.value, dir)
-                }.shuffled()
-
-                _sessionPhase.value = SessionPhase.Quiz(
-                    currentIndex = 0,
-                    questions = questions,
-                    userAnswers = mutableMapOf()
-                )
+                val pool = allEntries.value
+                val questions = mutableListOf<QuizQuestion>()
+                for (entry in current.entries) {
+                    questions.add(repository.createQuestion(entry, pool, LearningDirection.RECOGNITION))
+                    questions.add(repository.createQuestion(entry, pool, LearningDirection.REVERSE_RECALL))
+                }
+                questions.shuffle()
+                _sessionPhase.value = SessionPhase.Quiz(0, questions, mutableMapOf())
             }
         }
     }
 
-    fun answerQuizQuestion(isCorrect: Boolean, rating: Int = if (isCorrect) 2 else 0) {
+    fun recordQuizAnswer(isCorrect: Boolean, question: QuizQuestion) {
         val current = _sessionPhase.value
         if (current is SessionPhase.Quiz) {
-            val q = current.questions[current.currentIndex]
             current.userAnswers[current.currentIndex] = isCorrect
-
-            // Record in repository
             viewModelScope.launch {
-                repository.recordStudyResult(q.entry, isCorrect, rating)
+                val target = allEntries.value.find { it.headword.equals(question.targetWord, ignoreCase = true) || it.primaryMeaning.equals(question.targetWord, ignoreCase = true) }
+                    ?: allEntries.value.find { it.entryNumber.toString() == question.id }
+                if (target != null) {
+                    repository.recordStudyResult(target, isCorrect)
+                }
             }
 
             if (current.currentIndex + 1 < current.questions.size) {
                 _sessionPhase.value = current.copy(currentIndex = current.currentIndex + 1)
             } else {
-                // Check if any mistakes were made
                 val mistakes = current.questions.filterIndexed { index, _ ->
                     current.userAnswers[index] == false
                 }
                 if (mistakes.isNotEmpty()) {
-                    // Enter mistake review phase
-                    _sessionPhase.value = SessionPhase.MistakeReview(
-                        currentIndex = 0,
-                        questions = mistakes
-                    )
+                    _sessionPhase.value = SessionPhase.MistakeReview(0, mistakes)
                 } else {
                     val correctCount = current.userAnswers.values.count { it }
                     _sessionPhase.value = SessionPhase.Completed(
@@ -372,16 +306,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }
-        }
-    }
-
-    fun answerMistakeReviewQuestion(isCorrect: Boolean) {
-        val current = _sessionPhase.value
-        if (current is SessionPhase.MistakeReview) {
-            val q = current.questions[current.currentIndex]
-            viewModelScope.launch {
-                repository.recordStudyResult(q.entry, isCorrect, rating = if (isCorrect) 1 else 0)
-            }
+        } else if (current is SessionPhase.MistakeReview) {
             if (current.currentIndex + 1 < current.questions.size) {
                 _sessionPhase.value = current.copy(currentIndex = current.currentIndex + 1)
             } else {
@@ -394,7 +319,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun exitSession() {
+    fun finishSession() {
         _sessionPhase.value = SessionPhase.Idle
     }
 

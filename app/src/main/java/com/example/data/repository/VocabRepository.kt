@@ -1,8 +1,10 @@
 package com.example.data.repository
 
 import android.content.Context
+import com.example.data.api.DictionaryApiService
 import com.example.data.db.AppDatabase
 import com.example.data.db.VocabEntity
+import com.example.data.model.DictionaryResult
 import com.example.data.model.LearningDirection
 import com.example.data.model.PageAudit
 import com.example.data.model.QuizQuestion
@@ -17,7 +19,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import kotlin.random.Random
+import java.util.UUID
 
 class VocabRepository(private val context: Context) {
     private val db = AppDatabase.getInstance(context)
@@ -31,7 +33,6 @@ class VocabRepository(private val context: Context) {
             val (entries, pageAudits) = loadFromAssets()
             cachedPagesAudit = pageAudits
             val entityList = entries.map { VocabEntity.fromDomain(it) }
-            // Chunk into batches of 50 (50 * 30 = 1500 params or less) to safely operate within Android SQLite variable limits
             for (batch in entityList.chunked(50)) {
                 dao.insertAll(batch)
             }
@@ -124,9 +125,9 @@ class VocabRepository(private val context: Context) {
                     primaryMeaning = eObj.optString("primaryMeaning", if (defs.isNotEmpty()) defs[0] else ""),
                     grammaticalLabels = gramms,
                     notes = eObj.optString("notes", ""),
-                    hasDuplicateHeadword = eObj.getBoolean("hasDuplicateHeadword"),
+                    hasDuplicateHeadword = eObj.optBoolean("hasDuplicateHeadword", false),
                     duplicateWithNumbers = dups,
-                    hasAnomaly = eObj.getBoolean("hasAnomaly"),
+                    hasAnomaly = eObj.optBoolean("hasAnomaly", false),
                     anomalyNotes = eObj.optString("anomalyNotes", ""),
                     exampleSentence = exSentence,
                     dictionaryExamples = dictExamples,
@@ -194,10 +195,6 @@ class VocabRepository(private val context: Context) {
         dao.updateVerification(entryNumber, status.name, correction, note)
     }
 
-    /**
-     * Spaced Repetition calculation (SM-2 based)
-     * grade: 0=Forgotten/Incorrect, 1=Hard, 2=Good/Correct, 3=Easy
-     */
     suspend fun recordStudyResult(entry: VocabEntry, isCorrect: Boolean, rating: Int = if (isCorrect) 2 else 0) = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         val oneDayMillis = 24 * 60 * 60 * 1000L
@@ -210,14 +207,12 @@ class VocabRepository(private val context: Context) {
 
         if (isCorrect) {
             repetitionCount += 1
-            // calculate interval
             intervalDays = when (repetitionCount) {
                 1 -> 1
                 2 -> 3
                 3 -> 6
                 else -> (intervalDays * easeFactor).toInt().coerceAtLeast(intervalDays + 1)
             }
-            // SM-2 Ease Factor calculation
             easeFactor += (0.1f - (3 - rating) * (0.08f + (3 - rating) * 0.02f))
             if (easeFactor < 1.3f) easeFactor = 1.3f
         } else {
@@ -248,9 +243,6 @@ class VocabRepository(private val context: Context) {
         )
     }
 
-    /**
-     * Builds dynamic quiz questions adhering to the 7 learning directions.
-     */
     fun createQuestion(
         target: VocabEntry,
         allEntries: List<VocabEntry>,
@@ -263,43 +255,44 @@ class VocabRepository(private val context: Context) {
 
         return when (direction) {
             LearningDirection.RECOGNITION -> {
-                val correct = target.primaryMeaning
-                val options = (distractors.map { it.primaryMeaning } + correct).distinct().shuffled()
+                val correct = target.primaryMeaning.ifBlank { target.definitions.firstOrNull() ?: target.headword }
+                val options = (distractors.map { it.primaryMeaning.ifBlank { it.definitions.firstOrNull() ?: it.headword } } + correct).shuffled()
                 QuizQuestion(
-                    id = "rec_${target.entryNumber}_${System.nanoTime()}",
-                    entry = target,
+                    id = UUID.randomUUID().toString(),
                     direction = direction,
                     prompt = "Select the correct meaning for:",
-                    options = if (options.size >= 4) options else (options + listOf("none of the above", "other")).take(4),
+                    targetWord = target.headword,
+                    options = options,
                     correctAnswer = correct,
-                    explanation = "Entry #${target.entryNumber} on page ${target.sourcePage} defines '${target.headword}' as: ${target.rawText}",
+                    explanation = "'${target.headword}' (${target.grammaticalLabels.joinToString()}) means: ${target.primaryMeaning}",
                     sourceDefinition = target.rawText,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
             LearningDirection.REVERSE_RECALL -> {
                 val correct = target.headword
-                val options = (distractors.map { it.headword } + correct).distinct().shuffled()
+                val options = (distractors.map { it.headword } + correct).shuffled()
                 QuizQuestion(
-                    id = "rev_${target.entryNumber}_${System.nanoTime()}",
-                    entry = target,
+                    id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Which word matches this TOEFL definition?",
-                    options = if (options.size >= 4) options else (options + listOf("alternate", "various")).take(4),
+                    prompt = "Which vocabulary word matches this definition?",
+                    targetWord = target.primaryMeaning,
+                    options = options,
                     correctAnswer = correct,
-                    explanation = "From PDF page ${target.sourcePage}: '${target.headword}' means '${target.definitions.joinToString(": ")}'.",
+                    explanation = "'${target.headword}' corresponds to: ${target.primaryMeaning} (PDF page ${target.sourcePage})",
                     sourceDefinition = target.rawText,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
             LearningDirection.SPELLING -> {
                 QuizQuestion(
-                    id = "spel_${target.entryNumber}_${System.nanoTime()}",
-                    entry = target,
+                    id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Listen or read the meaning and type the headword accurately:",
-                    correctAnswer = target.headword,
-                    explanation = "Headword: '${target.headword}' | Original PDF entry: ${target.rawText}",
+                    prompt = "Spell the word that means: \"${target.primaryMeaning}\"",
+                    targetWord = target.headword,
+                    options = emptyList(),
+                    correctAnswer = target.headword.trim().lowercase(),
+                    explanation = "Correct spelling: '${target.headword}'. Source entry #${target.entryNumber} on page ${target.sourcePage}.",
                     sourceDefinition = target.rawText,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
@@ -307,56 +300,57 @@ class VocabRepository(private val context: Context) {
             LearningDirection.CONTEXT -> {
                 val sentence = generateContextSentence(target)
                 val correct = target.headword
-                val options = (distractors.map { it.headword } + correct).distinct().shuffled()
+                val options = (distractors.map { it.headword } + correct).shuffled()
                 QuizQuestion(
-                    id = "ctx_${target.entryNumber}_${System.nanoTime()}",
-                    entry = target,
+                    id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Fill in the blank with the appropriate TOEFL vocabulary item:",
-                    contextSentence = sentence,
+                    prompt = "Fill in the blank in the academic context:",
+                    targetWord = sentence,
                     options = options,
                     correctAnswer = correct,
-                    explanation = "Correct word: '${target.headword}'. Original PDF definition: ${target.rawText}",
+                    explanation = "'${target.headword}' properly completes the context. Meaning: ${target.primaryMeaning}",
                     sourceDefinition = target.rawText,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
             LearningDirection.SYNONYM -> {
-                val bestSynonym = if (target.definitions.size > 1) target.definitions[1] else target.primaryMeaning
-                val otherMeanings = distractors.map { it.primaryMeaning }
-                val options = (otherMeanings + bestSynonym).distinct().shuffled()
+                val dictSyn = target.dictionarySynonyms.firstOrNull()
+                val targetSyn = dictSyn ?: target.definitions.firstOrNull() ?: target.primaryMeaning
+                val otherMeanings = distractors.map { it.primaryMeaning }.shuffled().take(3)
+                val options = (otherMeanings + targetSyn).shuffled()
                 QuizQuestion(
-                    id = "syn_${target.entryNumber}_${System.nanoTime()}",
-                    entry = target,
+                    id = UUID.randomUUID().toString(),
                     direction = direction,
                     prompt = "Identify the closest synonym for '${target.headword}':",
+                    targetWord = target.headword,
                     options = options,
-                    correctAnswer = bestSynonym,
-                    explanation = "PDF synonyms listed for '${target.headword}': ${target.definitions.joinToString(", ")}",
+                    correctAnswer = targetSyn,
+                    explanation = "A recognized synonym for '${target.headword}' is '${targetSyn}'.",
                     sourceDefinition = target.rawText,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
             LearningDirection.PRODUCTION -> {
                 QuizQuestion(
-                    id = "prod_${target.entryNumber}_${System.nanoTime()}",
-                    entry = target,
+                    id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Write an original academic sentence demonstrating how '${target.headword}' is used:",
+                    prompt = "Write an authentic sentence demonstrating '${target.headword}' (${target.primaryMeaning}):",
+                    targetWord = target.headword,
+                    options = emptyList(),
                     correctAnswer = target.headword,
-                    explanation = "Remember to use '${target.headword}' according to its definition: ${target.primaryMeaning}.",
+                    explanation = "Good usage involves demonstrating the target term in an appropriate academic register. Reference: ${target.exampleSentence.ifBlank { target.rawText }}",
                     sourceDefinition = target.rawText,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
             LearningDirection.LISTENING -> {
                 val correct = target.headword
-                val options = (distractors.map { it.headword } + correct).distinct().shuffled()
+                val options = (distractors.map { it.headword } + correct).shuffled()
                 QuizQuestion(
-                    id = "list_${target.entryNumber}_${System.nanoTime()}",
-                    entry = target,
+                    id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Listen to the spoken audio and choose the spoken TOEFL vocabulary word:",
+                    prompt = "Tap audio to listen, then select the spoken vocabulary item:",
+                    targetWord = target.headword,
                     options = options,
                     correctAnswer = correct,
                     explanation = "Spoken word: '${target.headword}'. Meaning: ${target.primaryMeaning} (Page ${target.sourcePage})",
@@ -383,8 +377,8 @@ class VocabRepository(private val context: Context) {
         return "The researchers observed that conditions were optimal to [_____] during the experimental phase."
     }
 
-    suspend fun fetchOnlineDictionary(entry: VocabEntry): Result<com.example.data.model.DictionaryResult> = withContext(Dispatchers.IO) {
-        val result = com.example.data.api.DictionaryApiService().fetchDefinition(entry.headword)
+    suspend fun fetchOnlineDictionary(entry: VocabEntry): Result<DictionaryResult> = withContext(Dispatchers.IO) {
+        val result = DictionaryApiService().fetchDefinition(entry.headword)
         if (result.isSuccess) {
             val dict = result.getOrNull()
             if (dict != null) {
@@ -464,7 +458,7 @@ class VocabRepository(private val context: Context) {
             forgottenCount = forgottenCount,
             difficultCount = difficultCount,
             bookmarkedCount = bookmarkedCount,
-            overallCompletionPercent = completion
+            overallCompletionPct = completion
         )
     }
 }

@@ -15,14 +15,14 @@ enum class StudyStatus {
     MASTERED
 }
 
-enum class LearningDirection(val label: String, val iconDescription: String) {
-    RECOGNITION("Recognition", "Word to Definition"),
-    REVERSE_RECALL("Reverse Recall", "Definition to Word"),
-    SPELLING("Spelling", "Audio/Clue to Typed Word"),
-    CONTEXT("Context", "Fill in the blank in sentence"),
-    SYNONYM("Synonym Discrimination", "Identify closest TOEFL synonym"),
-    PRODUCTION("Production", "Construct an original sentence"),
-    LISTENING("Listening", "Audio pronunciation recognition")
+enum class LearningDirection(val displayName: String, val description: String) {
+    RECOGNITION("Recognition", "Word to meaning selection"),
+    REVERSE_RECALL("Reverse Recall", "Meaning to target word recall"),
+    SPELLING("Spelling & Typing", "Spell the word from pronunciation/meaning"),
+    CONTEXT("Context Gap-Fill", "Complete the missing word in context"),
+    SYNONYM("Synonym Discrimination", "Identify synonymous or distinguishing terms"),
+    PRODUCTION("Production Writing", "Write an authentic sentence using the word"),
+    LISTENING("Listening & Audio", "Identify the word spoken via speech audio")
 }
 
 data class VocabEntry(
@@ -33,23 +33,21 @@ data class VocabEntry(
     val definitions: List<String>,
     val primaryMeaning: String,
     val grammaticalLabels: List<String>,
-    val notes: String,
-    val hasDuplicateHeadword: Boolean,
-    val duplicateWithNumbers: List<Int>,
-    val hasAnomaly: Boolean,
-    val anomalyNotes: String,
+    val notes: String = "",
+    val hasDuplicateHeadword: Boolean = false,
+    val duplicateWithNumbers: List<Int> = emptyList(),
+    val hasAnomaly: Boolean = false,
+    val anomalyNotes: String = "",
     val userStatus: UserVerificationStatus = UserVerificationStatus.UNVERIFIED,
     val userCorrection: String? = null,
     val userNote: String? = null,
     val isDifficult: Boolean = false,
     val isBookmarked: Boolean = false,
-    // Examples & Dictionary connection
     val exampleSentence: String = "",
     val dictionaryExamples: List<String> = emptyList(),
     val dictionaryDefinitions: List<String> = emptyList(),
     val dictionarySynonyms: List<String> = emptyList(),
     val phonetic: String? = null,
-    // Learning progress fields
     val studyStatus: StudyStatus = StudyStatus.NEW,
     val repetitionCount: Int = 0,
     val reviewCount: Int = 0,
@@ -58,24 +56,6 @@ data class VocabEntry(
     val intervalDays: Int = 0,
     val nextReviewTimestamp: Long = 0L,
     val lastReviewedTimestamp: Long? = null
-)
-
-data class DictionaryResult(
-    val term: String,
-    val phonetic: String? = null,
-    val definitions: List<String> = emptyList(),
-    val examples: List<String> = emptyList(),
-    val synonyms: List<String> = emptyList(),
-    val source: String = "Wiktionary REST API"
-)
-
-data class PageAudit(
-    val page: Int,
-    val entryCount: Int,
-    val startNumber: Int,
-    val endNumber: Int,
-    val anomalyCount: Int,
-    val status: String
 )
 
 data class StudyStats(
@@ -92,18 +72,34 @@ data class StudyStats(
     val forgottenCount: Int,
     val difficultCount: Int,
     val bookmarkedCount: Int,
-    val overallCompletionPercent: Float
+    val overallCompletionPct: Float
+)
+
+data class PageAudit(
+    val page: Int,
+    val entryCount: Int,
+    val startNumber: Int,
+    val endNumber: Int,
+    val anomalyCount: Int,
+    val status: String
 )
 
 data class QuizQuestion(
     val id: String,
-    val entry: VocabEntry,
     val direction: LearningDirection,
     val prompt: String,
-    val contextSentence: String? = null,
+    val targetWord: String,
     val options: List<String> = emptyList(),
     val correctAnswer: String,
     val explanation: String,
     val sourceDefinition: String,
     val grammaticalLabel: String? = null
+)
+
+data class DictionaryResult(
+    val headword: String,
+    val phonetic: String?,
+    val definitions: List<String>,
+    val examples: List<String>,
+    val synonyms: List<String>
 )

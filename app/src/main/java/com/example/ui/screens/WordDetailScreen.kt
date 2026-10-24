@@ -3,13 +3,10 @@ package com.example.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,16 +20,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,10 +44,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -61,10 +57,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,24 +69,16 @@ import com.example.data.api.DictionaryApiService
 import com.example.data.model.UserVerificationStatus
 import com.example.data.model.VocabEntry
 import com.example.ui.components.AnomalyBadge
-import com.example.ui.components.BookmarkToggleButton
-import com.example.ui.components.DifficultToggleButton
-import com.example.ui.components.EntryNumberBadge
-import com.example.ui.components.PageBadge
 import com.example.ui.components.StatusBadge
+import com.example.ui.components.TtsButton
 import com.example.ui.components.VerificationBadge
 import com.example.ui.theme.AccentGold
-import com.example.ui.theme.ErrorRed
-import com.example.ui.theme.Navy800
 import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningOrange
 import com.example.ui.viewmodel.VocabViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WordDetailScreen(
     entry: VocabEntry,
@@ -99,35 +88,44 @@ fun WordDetailScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val isDictionaryLoading by viewModel.isDictionaryLoading.collectAsState()
-    val dictionaryMessage by viewModel.dictionaryMessage.collectAsState()
+    val isDictLoading by viewModel.isDictionaryLoading.collectAsState()
+    val dictMessage by viewModel.dictionaryMessage.collectAsState()
 
     var showEditDialog by remember { mutableStateOf(false) }
-    var editCorrection by remember(entry) { mutableStateOf(entry.userCorrection ?: "") }
-    var editNote by remember(entry) { mutableStateOf(entry.userNote ?: "") }
-    var selectedStatus by remember(entry) { mutableStateOf(entry.userStatus) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Word #${entry.entryNumber}") },
+                title = {
+                    Text(
+                        text = "Entry #${entry.entryNumber}",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                },
                 navigationIcon = {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.testTag("detail_back_button")
-                    ) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
                     }
                 },
                 actions = {
-                    DifficultToggleButton(
-                        isDifficult = entry.isDifficult,
-                        onToggle = { viewModel.toggleDifficult(entry) }
-                    )
-                    BookmarkToggleButton(
-                        isBookmarked = entry.isBookmarked,
-                        onToggle = { viewModel.toggleBookmark(entry) }
-                    )
+                    IconButton(onClick = { viewModel.toggleDifficult(entry) }) {
+                        Icon(
+                            imageVector = if (entry.isDifficult) Icons.Default.Star else Icons.Outlined.StarBorder,
+                            contentDescription = "Toggle Difficult",
+                            tint = if (entry.isDifficult) AccentGold else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { viewModel.toggleBookmark(entry) }) {
+                        Icon(
+                            imageVector = if (entry.isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
+                            contentDescription = "Toggle Bookmark",
+                            tint = if (entry.isBookmarked) PrimaryBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
@@ -144,10 +142,12 @@ fun WordDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            // Headword & Pronunciation Card
+            // Main Headword Header Card
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -158,578 +158,367 @@ fun WordDetailScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                EntryNumberBadge(number = entry.entryNumber)
-                                PageBadge(page = entry.sourcePage)
-                                StatusBadge(status = entry.studyStatus)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "#${entry.entryNumber}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = PrimaryBlue
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "PDF Page ${entry.sourcePage}",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                            VerificationBadge(status = entry.userStatus)
+                            StatusBadge(status = entry.studyStatus)
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = entry.headword,
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TtsButton(text = entry.headword, onSpeak = { viewModel.speak(it) }, size = 24)
+                        }
+
+                        if (entry.grammaticalLabels.isNotEmpty()) {
+                            Text(
+                                text = "Part of speech: ${entry.grammaticalLabels.joinToString()}",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = entry.headword,
-                                    fontSize = 26.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                if (entry.phonetic != null) {
-                                    Text(
-                                        text = entry.phonetic ?: "",
-                                        fontSize = 14.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        color = PrimaryBlue,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                                if (entry.grammaticalLabels.isNotEmpty()) {
-                                    Text(
-                                        text = "Parts of speech: ${entry.grammaticalLabels.joinToString(", ")}",
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-                            IconButton(
-                                onClick = { viewModel.speak(entry.headword) },
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .background(PrimaryBlue.copy(alpha = 0.12f), CircleShape)
-                                    .testTag("detail_pronounce_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.VolumeUp,
-                                    contentDescription = "Pronounce Word",
-                                    tint = PrimaryBlue
-                                )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            VerificationBadge(status = entry.userStatus)
+                            if (entry.hasAnomaly) {
+                                AnomalyBadge(notes = entry.anomalyNotes)
                             }
                         }
                     }
                 }
             }
 
-            // Faithful Source Preservation Card
+            // Original PDF Verbatim Source
             item {
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     ),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = PrimaryBlue,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "Original PDF Source (Page ${entry.sourcePage})",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryBlue
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.surface,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = entry.rawText,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 13.sp,
-                                lineHeight = 20.sp,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(12.dp)
-                            )
-                        }
+                        Text(
+                            text = "Original PDF Source (Page ${entry.sourcePage})",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = PrimaryBlue
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = entry.rawText,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            fontStyle = FontStyle.Italic,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             }
 
-            // Meanings & Synonyms List
+            // Definitions & Synonyms Card
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(20.dp)) {
                         Text(
-                            text = "Meanings & Synonyms",
+                            text = "Definitions & Meaning",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+                            fontSize = 16.sp
                         )
                         Spacer(modifier = Modifier.height(10.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            entry.definitions.forEach { def ->
-                                Surface(
-                                    color = PrimaryBlue.copy(alpha = 0.08f),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryBlue.copy(alpha = 0.2f))
-                                ) {
-                                    Text(
-                                        text = def,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = PrimaryBlue,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                    )
-                                }
+                        entry.definitions.forEachIndexed { idx, def ->
+                            Row(
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text(
+                                    text = "${idx + 1}.",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = PrimaryBlue,
+                                    modifier = Modifier.width(22.dp)
+                                )
+                                Text(
+                                    text = def,
+                                    fontSize = 14.sp,
+                                    lineHeight = 20.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                             }
                         }
 
                         if (entry.notes.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(14.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "Extended Notes / Phrases:",
-                                fontWeight = FontWeight.SemiBold,
+                                text = "Note: ${entry.notes}",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = entry.notes,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
                 }
             }
 
-            // Authentic Examples & Dictionary Connection Card
+            // Contextual Sentence & Authentic TOEFL Usage
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("dictionary_card")
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(20.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Language,
-                                    contentDescription = null,
-                                    tint = PrimaryBlue,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Dictionary & Authentic Examples",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
-                                )
-                            }
-                            if (isDictionaryLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = PrimaryBlue
-                                )
-                            } else {
-                                OutlinedButton(
-                                    onClick = { viewModel.fetchDictionaryForEntry(entry) },
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                    modifier = Modifier.testTag("fetch_dictionary_button")
-                                ) {
-                                    Icon(imageVector = Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Fetch Online", fontSize = 11.sp)
-                                }
-                            }
-                        }
-
-                        if (!dictionaryMessage.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Surface(
-                                color = PrimaryBlue.copy(alpha = 0.08f),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = dictionaryMessage ?: "",
-                                    fontSize = 11.sp,
-                                    color = PrimaryBlue,
-                                    modifier = Modifier.padding(8.dp)
+                            Text(
+                                text = "Contextual Usage & Examples",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            if (entry.exampleSentence.isNotBlank()) {
+                                TtsButton(
+                                    text = entry.exampleSentence,
+                                    onSpeak = { viewModel.speak(it) },
+                                    size = 18
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        // Contextual Sentence
-                        Text(
-                            text = "TOEFL Contextual Example:",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                        if (entry.exampleSentence.isNotBlank()) {
+                            Text(
+                                text = "\"${entry.exampleSentence}\"",
+                                fontSize = 14.sp,
+                                lineHeight = 21.sp,
+                                fontStyle = FontStyle.Italic,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        } else {
+                            Text(
+                                text = "The researchers observed that conditions were optimal to ${entry.headword} during the experiment.",
+                                fontSize = 14.sp,
+                                lineHeight = 21.sp,
+                                fontStyle = FontStyle.Italic,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (entry.dictionaryExamples.isNotEmpty() && entry.dictionaryExamples.size > 1) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Additional Authentic Examples:",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = PrimaryBlue
+                            )
+                            entry.dictionaryExamples.drop(1).take(3).forEach { ex ->
                                 Text(
-                                    text = "“${entry.exampleSentence.ifBlank { "Scholars analyzed how ${entry.headword} influenced academic outcomes." }}”",
+                                    text = "• $ex",
                                     fontSize = 13.sp,
-                                    lineHeight = 20.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(onClick = { viewModel.speak(entry.exampleSentence) }) {
-                                    Icon(
-                                        imageVector = Icons.Default.VolumeUp,
-                                        contentDescription = "Read Example",
-                                        tint = PrimaryBlue,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        // Synonyms by Dictionary
-                        if (entry.dictionarySynonyms.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Text(
-                                text = "Synonyms by Academic Dictionary:",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                entry.dictionarySynonyms.forEach { syn ->
-                                    Surface(
-                                        color = Color(0xFF8B5CF6).copy(alpha = 0.12f),
-                                        shape = RoundedCornerShape(8.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.25f)),
-                                        modifier = Modifier.clickable { viewModel.speak(syn) }
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                                        ) {
-                                            Text(
-                                                text = syn,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = Color(0xFF7C3AED)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Icon(
-                                                imageVector = Icons.Default.VolumeUp,
-                                                contentDescription = "Speak $syn",
-                                                tint = Color(0xFF7C3AED),
-                                                modifier = Modifier.size(13.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Authentic Dictionary Examples from API
-                        val extraExamples = entry.dictionaryExamples.filter { it != entry.exampleSentence }
-                        if (extraExamples.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "Authentic Dictionary Examples:",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            extraExamples.forEach { ex ->
-                                Row(
-                                    modifier = Modifier.padding(vertical = 3.dp),
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Text("• ", color = PrimaryBlue, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        text = "“$ex”",
-                                        fontSize = 13.sp,
-                                        lineHeight = 18.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-
-                        // Dictionary Definitions from API (if any)
-                        if (entry.dictionaryDefinitions.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "Expanded Academic Definitions:",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            entry.dictionaryDefinitions.forEach { d ->
-                                Text(
-                                    text = "• $d",
-                                    fontSize = 12.sp,
-                                    lineHeight = 18.sp,
+                                    lineHeight = 19.sp,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                     modifier = Modifier.padding(vertical = 2.dp)
                                 )
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // External Dictionaries
-                        Text(
-                            text = "External Academic Dictionaries:",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    val url = DictionaryApiService.getCambridgeUrl(entry.headword)
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                },
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Cambridge", fontSize = 11.sp, maxLines = 1)
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    val url = DictionaryApiService.getMerriamWebsterUrl(entry.headword)
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                },
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("M-Webster", fontSize = 11.sp, maxLines = 1)
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    val url = DictionaryApiService.getOxfordLearnersUrl(entry.headword)
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                },
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Oxford", fontSize = 11.sp, maxLines = 1)
-                            }
-                        }
                     }
                 }
             }
 
-            // Anomaly / Audit Flag Card (if present)
-            if (entry.hasAnomaly) {
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.08f)),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = ErrorRed,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = "PDF Extraction Flag Detected",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = ErrorRed
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = entry.anomalyNotes,
-                                fontSize = 13.sp,
-                                color = ErrorRed.copy(alpha = 0.9f)
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Per system instructions, this entry has not been silently discarded or altered. You can mark it as verified or supply a custom correction below.",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            // User Verification & Corrections Section
+            // Academic Dictionary & Synonyms
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(20.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "User Verification & Notes",
+                                text = "Synonyms by Dictionary",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
+                                fontSize = 16.sp
                             )
-                            IconButton(onClick = { showEditDialog = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit Verification & Notes",
-                                    tint = PrimaryBlue
-                                )
+                            OutlinedButton(
+                                onClick = { viewModel.fetchOnlineDictionary(entry) },
+                                enabled = !isDictLoading,
+                                modifier = Modifier.height(36.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                if (isDictLoading) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Fetch Online", fontSize = 12.sp)
+                                }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        dictMessage?.let {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(text = it, fontSize = 12.sp, color = PrimaryBlue)
+                        }
 
-                        // Status Selection Chips
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            UserVerificationStatus.values().forEach { status ->
-                                FilterChip(
-                                    selected = entry.userStatus == status,
-                                    onClick = {
-                                        viewModel.updateVerification(
-                                            entryNumber = entry.entryNumber,
-                                            status = status,
-                                            correction = entry.userCorrection,
-                                            note = entry.userNote
-                                        )
-                                    },
-                                    label = { Text(status.name.replace("_", " ")) }
-                                )
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        if (entry.dictionarySynonyms.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                entry.dictionarySynonyms.take(5).forEach { syn ->
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(PrimaryBlue.copy(alpha = 0.12f))
+                                            .clickable { viewModel.speak(syn) }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = syn,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = PrimaryBlue
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                                contentDescription = "Speak $syn",
+                                                tint = PrimaryBlue,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
-                        }
-
-                        if (!entry.userCorrection.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(10.dp))
+                        } else {
                             Text(
-                                text = "Your Correction:",
-                                fontWeight = FontWeight.SemiBold,
+                                text = "Tap 'Fetch Online' to pull live synonyms and definitions from Wiktionary & Datamuse.",
                                 fontSize = 12.sp,
-                                color = PrimaryBlue
-                            )
-                            Text(
-                                text = entry.userCorrection,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
-                        if (!entry.userNote.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = "Your Study Notes:",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp,
-                                color = AccentGold
-                            )
-                            Text(
-                                text = entry.userNote,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "External Dictionaries:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ExternalDictChip("Cambridge") {
+                                val url = DictionaryApiService.getCambridgeUrl(entry.headword)
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
+                            ExternalDictChip("Merriam-Webster") {
+                                val url = DictionaryApiService.getMerriamWebsterUrl(entry.headword)
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
+                            ExternalDictChip("Oxford") {
+                                val url = DictionaryApiService.getOxfordUrl(entry.headword)
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
                         }
                     }
                 }
             }
 
-            // Spaced Repetition (SRS) Status
+            // User Verification & Corrections Card
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Learning Retention & SRS Metrics",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+                    Column(modifier = Modifier.padding(20.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text("Consecutive Recalls", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${entry.repetitionCount} times", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Column {
-                                Text("Times Forgotten", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${entry.forgottenCount} times", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Column {
-                                Text("Review Interval", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${entry.intervalDays} days", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "Verification & User Corrections",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            IconButton(onClick = { showEditDialog = true }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit Verification", tint = PrimaryBlue)
                             }
                         }
 
-                        if (entry.lastReviewedTimestamp != null && entry.lastReviewedTimestamp > 0) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            val dateStr = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(entry.lastReviewedTimestamp))
+                        Text(
+                            text = "Status: ${entry.userStatus.name}",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (!entry.userCorrection.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Last reviewed: $dateStr",
-                                fontSize = 11.sp,
+                                text = "Your Correction: ${entry.userCorrection}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = SuccessGreen
+                            )
+                        }
+
+                        if (!entry.userNote.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Personal Note: ${entry.userNote}",
+                                fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -737,47 +526,69 @@ fun WordDetailScreen(
                 }
             }
 
-            // Launch Practice for this word
+            // Practice This Word Action Button
             item {
                 Button(
                     onClick = { onStartPracticeForWord(entry) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("practice_word_button"),
+                        .height(52.dp)
+                        .testTag("button_practice_word"),
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
+                    Icon(Icons.Default.PlayArrow, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Practice This Word (7 Directions)", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Practice Word Across 7 Learning Modes",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
     }
 
     if (showEditDialog) {
+        var selectedStatus by remember { mutableStateOf(entry.userStatus) }
+        var correctionText by remember { mutableStateOf(entry.userCorrection ?: "") }
+        var noteText by remember { mutableStateOf(entry.userNote ?: "") }
+
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
-            title = { Text("Edit Entry Verification & Notes") },
+            title = { Text("Update Entry Verification") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = "Update status, add your own custom definition, or add notes for TOEFL study:",
-                        fontSize = 12.sp
-                    )
-
+                Column {
+                    Text("Audit Status for #${entry.entryNumber} '${entry.headword}':", fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    UserVerificationStatus.values().forEach { st ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedStatus = st }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            RadioButton(
+                                selected = selectedStatus == st,
+                                onClick = { selectedStatus = st }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = st.name, fontSize = 13.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
-                        value = editCorrection,
-                        onValueChange = { editCorrection = it },
-                        label = { Text("Custom Definition / Correction") },
+                        value = correctionText,
+                        onValueChange = { correctionText = it },
+                        label = { Text("Your Correction (optional)") },
                         modifier = Modifier.fillMaxWidth()
                     )
-
+                    Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = editNote,
-                        onValueChange = { editNote = it },
-                        label = { Text("Personal Study Notes") },
+                        value = noteText,
+                        onValueChange = { noteText = it },
+                        label = { Text("Personal Learning Note (optional)") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -786,10 +597,10 @@ fun WordDetailScreen(
                 Button(
                     onClick = {
                         viewModel.updateVerification(
-                            entryNumber = entry.entryNumber,
-                            status = selectedStatus,
-                            correction = editCorrection.ifBlank { null },
-                            note = editNote.ifBlank { null }
+                            entry.entryNumber,
+                            selectedStatus,
+                            correctionText.ifBlank { null },
+                            noteText.ifBlank { null }
                         )
                         showEditDialog = false
                     }
@@ -798,10 +609,24 @@ fun WordDetailScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) {
+                OutlinedButton(onClick = { showEditDialog = false }) {
                     Text("Cancel")
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun ExternalDictChip(name: String, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+        modifier = Modifier.height(32.dp)
+    ) {
+        Text(text = name, fontSize = 11.sp)
+        Spacer(modifier = Modifier.width(4.dp))
+        Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(12.dp))
     }
 }

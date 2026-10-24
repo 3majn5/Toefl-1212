@@ -1,14 +1,15 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,18 +18,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.FlipCameraAndroid
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -41,7 +45,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -58,7 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -66,11 +69,11 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.LearningDirection
 import com.example.data.model.QuizQuestion
 import com.example.data.model.VocabEntry
-import com.example.ui.components.EntryNumberBadge
-import com.example.ui.components.PageBadge
+import com.example.ui.components.TtsButton
 import com.example.ui.theme.AccentGold
 import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.PrimaryBlue
+import com.example.ui.theme.SecondaryIndigo
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningOrange
 import com.example.ui.viewmodel.SessionPhase
@@ -90,24 +93,29 @@ fun StudySessionScreen(
             TopAppBar(
                 title = {
                     Text(
-                        when (phase) {
-                            is SessionPhase.IntroNew -> "Introduction Phase"
-                            is SessionPhase.Quiz -> "Practice & Recall Phase"
-                            is SessionPhase.MistakeReview -> "Mistake Review"
+                        text = when (phase) {
+                            is SessionPhase.IntroNew -> "Study Card"
+                            is SessionPhase.Quiz -> "Active Practice"
+                            is SessionPhase.MistakeReview -> "Mistake Reinforcement"
                             is SessionPhase.Completed -> "Session Summary"
-                            SessionPhase.Idle -> "Study Session"
-                        }
+                            SessionPhase.Idle -> "Session"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
                     )
                 },
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            viewModel.exitSession()
+                            viewModel.finishSession()
                             onFinish()
                         },
                         modifier = Modifier.testTag("session_close_button")
                     ) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Exit Session")
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Exit Session"
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -122,51 +130,43 @@ fun StudySessionScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            when (val current = phase) {
+            when (val currentPhase = phase) {
                 is SessionPhase.Idle -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No active session.")
-                    }
+                    IdleView(
+                        onStartDaily = { viewModel.startDailySession() },
+                        onBack = onFinish
+                    )
                 }
                 is SessionPhase.IntroNew -> {
-                    IntroNewWordView(
-                        currentIndex = current.currentIndex,
-                        total = current.entries.size,
-                        entry = current.entries[current.currentIndex],
+                    IntroCardView(
+                        phase = currentPhase,
                         onSpeak = { viewModel.speak(it) },
-                        onNext = { viewModel.nextIntroWord() }
+                        onNext = { viewModel.advanceIntroCard() }
                     )
                 }
                 is SessionPhase.Quiz -> {
-                    val q = current.questions[current.currentIndex]
-                    QuizQuestionView(
-                        question = q,
-                        currentIndex = current.currentIndex,
-                        total = current.questions.size,
+                    QuizView(
+                        phase = currentPhase,
                         onSpeak = { viewModel.speak(it) },
-                        onAnswer = { isCorrect, rating ->
-                            viewModel.answerQuizQuestion(isCorrect, rating)
+                        onAnswer = { isCorrect, q ->
+                            viewModel.recordQuizAnswer(isCorrect, q)
                         }
                     )
                 }
                 is SessionPhase.MistakeReview -> {
-                    val q = current.questions[current.currentIndex]
-                    QuizQuestionView(
-                        question = q,
-                        currentIndex = current.currentIndex,
-                        total = current.questions.size,
+                    MistakeReviewView(
+                        phase = currentPhase,
                         onSpeak = { viewModel.speak(it) },
-                        onAnswer = { isCorrect, _ ->
-                            viewModel.answerMistakeReviewQuestion(isCorrect)
-                        },
-                        isMistakeReview = true
+                        onNext = { q ->
+                            viewModel.recordQuizAnswer(true, q)
+                        }
                     )
                 }
                 is SessionPhase.Completed -> {
-                    SessionCompletedView(
-                        completed = current,
-                        onDone = {
-                            viewModel.exitSession()
+                    CompletedView(
+                        phase = currentPhase,
+                        onFinish = {
+                            viewModel.finishSession()
                             onFinish()
                         }
                     )
@@ -177,66 +177,124 @@ fun StudySessionScreen(
 }
 
 @Composable
-fun IntroNewWordView(
-    currentIndex: Int,
-    total: Int,
-    entry: VocabEntry,
+private fun IdleView(
+    onStartDaily: () -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.AutoAwesome,
+            contentDescription = null,
+            tint = PrimaryBlue,
+            modifier = Modifier.size(64.dp)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "No Active Session",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Ready to boost your TOEFL score? Start today's recommended spaced review.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onStartDaily,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().testTag("idle_start_button")
+        ) {
+            Text("Start Daily Session", fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onBack,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Back to Dashboard")
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun IntroCardView(
+    phase: SessionPhase.IntroNew,
     onSpeak: (String) -> Unit,
     onNext: () -> Unit
 ) {
-    var isFlipped by remember(entry) { mutableStateOf(false) }
-    val progress = (currentIndex + 1).toFloat() / total
+    val entry = phase.entries.getOrNull(phase.currentIndex) ?: return
+    var isFlipped by remember(phase.currentIndex) { mutableStateOf(false) }
 
-    LazyColumn(
+    val rotation by animateFloatAsState(
+        targetValue = if (isFlipped) 180f else 0f,
+        animationSpec = tween(400),
+        label = "card_rotation"
+    )
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(16.dp)
     ) {
-        item {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Word ${currentIndex + 1} of $total",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "Tap card to flip",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = PrimaryBlue
-                )
-            }
+        // Progress
+        LinearProgressIndicator(
+            progress = { (phase.currentIndex + 1) / phase.entries.size.toFloat() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            color = PrimaryBlue
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Flashcard ${phase.currentIndex + 1} of ${phase.entries.size}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Page ${entry.sourcePage} • #${entry.entryNumber}",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = PrimaryBlue
+            )
         }
 
-        // Flashcard Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isFlipped) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(340.dp)
-                    .clickable { isFlipped = !isFlipped }
-                    .testTag("flashcard_item")
-            ) {
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Interactive Flip Card
+        Card(
+            onClick = { isFlipped = !isFlipped },
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .graphicsLayer {
+                    rotationY = rotation
+                    cameraDistance = 12f * density
+                }
+                .testTag("flashcard_flip_card")
+        ) {
+            if (rotation <= 90f) {
+                // Front Side
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -244,138 +302,479 @@ fun IntroNewWordView(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        EntryNumberBadge(number = entry.entryNumber)
-                        PageBadge(page = entry.sourcePage)
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
                     Text(
                         text = entry.headword,
-                        fontSize = 32.sp,
+                        style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold,
+                        color = PrimaryBlue,
                         textAlign = TextAlign.Center
                     )
 
-                    if (entry.grammaticalLabels.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                    entry.phonetic?.let { phonetic ->
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "(${entry.grammaticalLabels.joinToString(", ")})",
-                            fontSize = 14.sp,
+                            text = phonetic,
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     IconButton(
                         onClick = { onSpeak(entry.headword) },
                         modifier = Modifier
-                            .size(44.dp)
-                            .background(PrimaryBlue.copy(alpha = 0.12f), CircleShape)
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryBlue.copy(alpha = 0.15f))
+                            .testTag("card_speak_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.VolumeUp,
-                            contentDescription = "Pronounce Word",
-                            tint = PrimaryBlue
+                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                            contentDescription = "Speak",
+                            tint = PrimaryBlue,
+                            modifier = Modifier.size(28.dp)
                         )
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    if (!isFlipped) {
-                        if (entry.dictionarySynonyms.isNotEmpty()) {
-                            Surface(
-                                color = Color(0xFF8B5CF6).copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text(
-                                    text = "Syn: ${entry.dictionarySynonyms.take(3).joinToString(", ")}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF7C3AED),
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                        Text(
-                            text = "Tap to view PDF definition & synonyms",
-                            fontSize = 13.sp,
-                            color = PrimaryBlue,
-                            fontWeight = FontWeight.Medium
-                        )
-                    } else {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = entry.definitions.joinToString(" • "),
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = PrimaryBlue,
-                                textAlign = TextAlign.Center
-                            )
-
-                            if (entry.dictionarySynonyms.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Surface(
-                                    color = Color(0xFF8B5CF6).copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(6.dp)
+                    if (entry.grammaticalLabels.isNotEmpty()) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            entry.grammaticalLabels.forEach { label ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(SecondaryIndigo.copy(alpha = 0.15f))
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        text = "Synonyms by Dictionary: ${entry.dictionarySynonyms.joinToString(" • ")}",
-                                        color = Color(0xFF7C3AED),
+                                        text = label,
+                                        color = SecondaryIndigo,
                                         fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
+                        }
+                    }
 
-                            if (entry.notes.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Related: ${entry.notes}",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
+                    Spacer(modifier = Modifier.height(30.dp))
 
-                            if (entry.exampleSentence.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surface,
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.fillMaxWidth()
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Flip,
+                            contentDescription = "Flip",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Tap card to reveal definition & dictionary synonyms",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                // Back Side (mirrored back so text is normal)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { rotationY = 180f }
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = entry.headword,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryBlue
+                        )
+                        TtsButton(text = entry.headword, onSpeak = onSpeak)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Primary Meaning:",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = entry.primaryMeaning,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    // Dictionary Synonyms (requested feature)
+                    if (entry.dictionarySynonyms.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = AccentGold,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Dictionary Synonyms:",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = AccentGold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            entry.dictionarySynonyms.forEach { syn ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(AccentGold.copy(alpha = 0.15f))
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "“${entry.exampleSentence}”",
-                                            fontSize = 12.sp,
-                                            lineHeight = 17.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.weight(1f)
+                                    Text(
+                                        text = syn,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Example Sentence
+                    val example = entry.exampleSentence.ifBlank {
+                        entry.dictionaryExamples.firstOrNull() ?: ""
+                    }
+                    if (example.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "Example in Context:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "\"$example\"",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontStyle = FontStyle.Italic,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "Tap to flip back",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Controls
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = { isFlipped = !isFlipped },
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp)
+                    .testTag("flip_button")
+            ) {
+                Icon(imageVector = Icons.Default.Flip, contentDescription = null)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Flip")
+            }
+
+            Button(
+                onClick = onNext,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                modifier = Modifier
+                    .weight(1.5f)
+                    .height(50.dp)
+                    .testTag("next_card_button")
+            ) {
+                Text(
+                    text = if (phase.currentIndex + 1 < phase.entries.size) "Next Word" else "Begin Quiz",
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuizView(
+    phase: SessionPhase.Quiz,
+    onSpeak: (String) -> Unit,
+    onAnswer: (Boolean, QuizQuestion) -> Unit
+) {
+    val question = phase.questions.getOrNull(phase.currentIndex) ?: return
+    var selectedOption by remember(phase.currentIndex) { mutableStateOf<String?>(null) }
+    var spellingInput by remember(phase.currentIndex) { mutableStateOf("") }
+    var productionInput by remember(phase.currentIndex) { mutableStateOf("") }
+    var hasAnswered by remember(phase.currentIndex) { mutableStateOf(false) }
+    var isCorrectAnswer by remember(phase.currentIndex) { mutableStateOf(false) }
+
+    // Auto-speak listening questions
+    LaunchedEffect(phase.currentIndex) {
+        if (question.direction == LearningDirection.LISTENING) {
+            onSpeak(question.targetWord)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        // Progress Bar
+        LinearProgressIndicator(
+            progress = { (phase.currentIndex + 1) / phase.questions.size.toFloat() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            color = PrimaryBlue
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(PrimaryBlue.copy(alpha = 0.15f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = question.direction.displayName,
+                    color = PrimaryBlue,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Text(
+                text = "Question ${phase.currentIndex + 1} of ${phase.questions.size}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Question Prompt Card
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Prompt",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    IconButton(
+                        onClick = {
+                            if (question.direction == LearningDirection.LISTENING) {
+                                onSpeak(question.targetWord)
+                            } else {
+                                onSpeak(question.prompt)
+                            }
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                            contentDescription = "Speak",
+                            tint = PrimaryBlue,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = question.prompt,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Interaction Area based on Direction
+        when {
+            // SPELLING
+            question.direction == LearningDirection.SPELLING -> {
+                OutlinedTextField(
+                    value = spellingInput,
+                    onValueChange = { if (!hasAnswered) spellingInput = it },
+                    label = { Text("Type the correct spelling") },
+                    singleLine = true,
+                    enabled = !hasAnswered,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("spelling_input")
+                )
+
+                if (!hasAnswered) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            hasAnswered = true
+                            isCorrectAnswer = spellingInput.trim().equals(question.correctAnswer.trim(), ignoreCase = true)
+                        },
+                        enabled = spellingInput.isNotBlank(),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("submit_spelling_button")
+                    ) {
+                        Text("Check Spelling")
+                    }
+                }
+            }
+
+            // PRODUCTION
+            question.direction == LearningDirection.PRODUCTION -> {
+                OutlinedTextField(
+                    value = productionInput,
+                    onValueChange = { if (!hasAnswered) productionInput = it },
+                    label = { Text("Write your sentence using '${question.targetWord}'") },
+                    minLines = 3,
+                    enabled = !hasAnswered,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("production_input")
+                )
+
+                if (!hasAnswered) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            hasAnswered = true
+                            isCorrectAnswer = productionInput.lowercase().contains(question.targetWord.lowercase())
+                        },
+                        enabled = productionInput.isNotBlank(),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("submit_production_button")
+                    ) {
+                        Text("Review Sentence")
+                    }
+                }
+            }
+
+            // MULTIPLE CHOICE (RECOGNITION, RECALL, CONTEXT, SYNONYM, LISTENING)
+            else -> {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    question.options.forEachIndexed { index, option ->
+                        val isSelected = selectedOption == option
+                        val isTarget = option.equals(question.correctAnswer, ignoreCase = true)
+
+                        val (cardColor, borderColor) = when {
+                            !hasAnswered -> if (isSelected) {
+                                Pair(PrimaryBlue.copy(alpha = 0.15f), PrimaryBlue)
+                            } else {
+                                Pair(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), Color.Transparent)
+                            }
+                            isTarget -> Pair(SuccessGreen.copy(alpha = 0.2f), SuccessGreen)
+                            isSelected && !isCorrectAnswer -> Pair(ErrorRed.copy(alpha = 0.2f), ErrorRed)
+                            else -> Pair(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), Color.Transparent)
+                        }
+
+                        Card(
+                            onClick = {
+                                if (!hasAnswered) {
+                                    selectedOption = option
+                                    hasAnswered = true
+                                    isCorrectAnswer = option.equals(question.correctAnswer, ignoreCase = true)
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = cardColor),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("quiz_option_$index")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = option,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (isSelected || (hasAnswered && isTarget)) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                if (hasAnswered) {
+                                    if (isTarget) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Correct",
+                                            tint = SuccessGreen
                                         )
-                                        IconButton(
-                                            onClick = { onSpeak(entry.exampleSentence) },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.VolumeUp,
-                                                contentDescription = "Read Example",
-                                                tint = PrimaryBlue,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
+                                    } else if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Incorrect",
+                                            tint = ErrorRed
+                                        )
                                     }
                                 }
                             }
@@ -385,360 +784,61 @@ fun IntroNewWordView(
             }
         }
 
-        // Action button
-        item {
-            Button(
-                onClick = onNext,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .testTag("flashcard_next_button"),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(
-                    text = if (currentIndex + 1 < total) "Next Word" else "Proceed to Quiz",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(imageVector = Icons.Default.ArrowForward, contentDescription = null)
-            }
-        }
-    }
-}
-
-@Composable
-fun QuizQuestionView(
-    question: QuizQuestion,
-    currentIndex: Int,
-    total: Int,
-    onSpeak: (String) -> Unit,
-    onAnswer: (Boolean, Int) -> Unit,
-    isMistakeReview: Boolean = false
-) {
-    var selectedOption by remember(question) { mutableStateOf<String?>(null) }
-    var typedAnswer by remember(question) { mutableStateOf("") }
-    var isSubmitted by remember(question) { mutableStateOf(false) }
-    var isCorrect by remember(question) { mutableStateOf(false) }
-
-    val progress = (currentIndex + 1).toFloat() / total
-
-    // Auto-play audio for listening questions
-    LaunchedEffect(question) {
-        if (question.direction == LearningDirection.LISTENING) {
-            onSpeak(question.correctAnswer)
-        }
-    }
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Progress Header
-        item {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isMistakeReview) "Mistake Review: ${currentIndex + 1}/$total" else "Question ${currentIndex + 1} of $total",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Surface(
-                        color = PrimaryBlue.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = question.direction.label,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = PrimaryBlue,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = if (isMistakeReview) WarningOrange else PrimaryBlue
-                )
-            }
-        }
-
-        // Question Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text(
-                        text = question.prompt,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    when (question.direction) {
-                        LearningDirection.RECOGNITION -> {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = question.entry.headword,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                IconButton(onClick = { onSpeak(question.entry.headword) }) {
-                                    Icon(imageVector = Icons.Default.VolumeUp, contentDescription = "Listen", tint = PrimaryBlue)
-                                }
-                            }
-                        }
-                        LearningDirection.REVERSE_RECALL -> {
-                            Text(
-                                text = "\"${question.entry.definitions.joinToString(" • ")}\"",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryBlue
-                            )
-                        }
-                        LearningDirection.CONTEXT -> {
-                            Text(
-                                text = question.contextSentence ?: "",
-                                fontSize = 16.sp,
-                                lineHeight = 24.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                        LearningDirection.LISTENING -> {
-                            Button(
-                                onClick = { onSpeak(question.correctAnswer) },
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(imageVector = Icons.Default.VolumeUp, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Play Spoken Word Audio")
-                            }
-                        }
-                        LearningDirection.SPELLING, LearningDirection.PRODUCTION, LearningDirection.SYNONYM -> {
-                            Text(
-                                text = question.entry.primaryMeaning,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryBlue
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Interactive Response Area
-        if (question.direction == LearningDirection.SPELLING) {
-            item {
-                Column {
-                    OutlinedTextField(
-                        value = typedAnswer,
-                        onValueChange = { typedAnswer = it },
-                        label = { Text("Type the headword") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag("spelling_input")
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    if (!isSubmitted) {
-                        Button(
-                            onClick = {
-                                val match = typedAnswer.trim().equals(question.correctAnswer.trim(), ignoreCase = true)
-                                isCorrect = match
-                                isSubmitted = true
-                            },
-                            enabled = typedAnswer.isNotBlank(),
-                            modifier = Modifier.fillMaxWidth().testTag("spelling_submit_button")
-                        ) {
-                            Text("Check Spelling")
-                        }
-                    }
-                }
-            }
-        } else if (question.direction == LearningDirection.PRODUCTION) {
-            item {
-                Column {
-                    OutlinedTextField(
-                        value = typedAnswer,
-                        onValueChange = { typedAnswer = it },
-                        label = { Text("Write your sentence containing '${question.correctAnswer}'") },
-                        minLines = 3,
-                        modifier = Modifier.fillMaxWidth().testTag("production_input")
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    if (!isSubmitted) {
-                        Button(
-                            onClick = {
-                                val containsWord = typedAnswer.lowercase().contains(question.correctAnswer.lowercase())
-                                val lengthOk = typedAnswer.trim().split("\\s+".toRegex()).size >= 5
-                                isCorrect = containsWord && lengthOk
-                                isSubmitted = true
-                            },
-                            enabled = typedAnswer.isNotBlank(),
-                            modifier = Modifier.fillMaxWidth().testTag("production_submit_button")
-                        ) {
-                            Text("Evaluate Sentence")
-                        }
-                    }
-                }
-            }
-        } else {
-            // Multiple Choice Options (4 choices)
-            items(question.options.size) { idx ->
-                val option = question.options[idx]
-                val isSelected = selectedOption == option
-
-                val buttonColor = if (isSubmitted) {
-                    when {
-                        option == question.correctAnswer -> SuccessGreen
-                        isSelected -> ErrorRed
-                        else -> MaterialTheme.colorScheme.surface
-                    }
-                } else {
-                    if (isSelected) PrimaryBlue else MaterialTheme.colorScheme.surface
-                }
-
+        // Post-Answer Feedback & Next Button
+        AnimatedVisibility(visible = hasAnswered) {
+            Column(modifier = Modifier.padding(top = 20.dp)) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = buttonColor),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     shape = RoundedCornerShape(12.dp),
-                    border = if (!isSubmitted && !isSelected) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)) else null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = !isSubmitted) {
-                            selectedOption = option
-                            isCorrect = option == question.correctAnswer
-                            isSubmitted = true
-                        }
-                        .testTag("quiz_option_$idx")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${('A' + idx)}.",
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSubmitted && (option == question.correctAnswer || isSelected)) Color.White else MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = option,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (isSubmitted && (option == question.correctAnswer || isSelected)) Color.White else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (isSubmitted) {
-                            if (option == question.correctAnswer) {
-                                Icon(imageVector = Icons.Default.Check, contentDescription = "Correct", tint = Color.White)
-                            } else if (isSelected) {
-                                Icon(imageVector = Icons.Default.Close, contentDescription = "Incorrect", tint = Color.White)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Feedback & Next Button
-        if (isSubmitted) {
-            item {
-                Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isCorrect) SuccessGreen.copy(alpha = 0.12f) else ErrorRed.copy(alpha = 0.12f)
+                        containerColor = if (isCorrectAnswer) SuccessGreen.copy(alpha = 0.15f) else ErrorRed.copy(alpha = 0.15f)
                     ),
-                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (isCorrect) Icons.Default.Check else Icons.Default.Close,
+                                imageVector = if (isCorrectAnswer) Icons.Default.CheckCircle else Icons.Default.Warning,
                                 contentDescription = null,
-                                tint = if (isCorrect) SuccessGreen else ErrorRed
+                                tint = if (isCorrectAnswer) SuccessGreen else ErrorRed,
+                                modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isCorrect) "Correct!" else "Incorrect",
+                                text = if (isCorrectAnswer) "Correct!" else "Needs Review",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = if (isCorrect) SuccessGreen else ErrorRed
+                                color = if (isCorrectAnswer) SuccessGreen else ErrorRed
                             )
                         }
+
                         Spacer(modifier = Modifier.height(6.dp))
+
                         Text(
                             text = question.explanation,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Preserved PDF Source: ${question.sourceDefinition}",
-                            fontSize = 11.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (question.entry.exampleSentence.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Context Example: “${question.entry.exampleSentence}”",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = PrimaryBlue
-                            )
-                        }
-                        if (question.entry.dictionarySynonyms.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Synonyms (Dict): ${question.entry.dictionarySynonyms.joinToString(", ")}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF7C3AED)
-                            )
-                        }
                     }
                 }
-            }
 
-            item {
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Button(
                     onClick = {
-                        val rating = if (isCorrect) 2 else 0
-                        onAnswer(isCorrect, rating)
+                        onAnswer(isCorrectAnswer, question)
                     },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
-                        .testTag("quiz_next_button"),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                    shape = RoundedCornerShape(14.dp)
+                        .height(50.dp)
+                        .testTag("quiz_continue_button")
                 ) {
                     Text(
-                        text = if (currentIndex + 1 < total) "Next Question" else "Finish Session",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
+                        text = if (phase.currentIndex + 1 < phase.questions.size) "Continue" else "See Results",
+                        fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(imageVector = Icons.Default.ArrowForward, contentDescription = null)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
                 }
             }
         }
@@ -746,13 +846,117 @@ fun QuizQuestionView(
 }
 
 @Composable
-fun SessionCompletedView(
-    completed: SessionPhase.Completed,
-    onDone: () -> Unit
+private fun MistakeReviewView(
+    phase: SessionPhase.MistakeReview,
+    onSpeak: (String) -> Unit,
+    onNext: (QuizQuestion) -> Unit
 ) {
-    val accuracy = if (completed.totalQuestions > 0) {
-        (completed.correctAnswers.toFloat() / completed.totalQuestions) * 100f
-    } else 100f
+    val question = phase.questions.getOrNull(phase.currentIndex) ?: return
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(WarningOrange.copy(alpha = 0.15f))
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Text(
+                text = "Targeted Reinforcement (${phase.currentIndex + 1}/${phase.questions.size})",
+                color = WarningOrange,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Prompt:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = question.prompt,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Correct Target:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = question.correctAnswer,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryBlue
+                    )
+                    TtsButton(text = question.correctAnswer, onSpeak = onSpeak)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Explanation:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = question.explanation,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = { onNext(question) },
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .testTag("mistake_got_it_button")
+        ) {
+            Text("Got It! Next", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun CompletedView(
+    phase: SessionPhase.Completed,
+    onFinish: () -> Unit
+) {
+    val scorePct = if (phase.totalQuestions > 0) {
+        ((phase.correctAnswers.toFloat() / phase.totalQuestions) * 100).toInt()
+    } else 100
 
     Column(
         modifier = Modifier
@@ -761,33 +965,26 @@ fun SessionCompletedView(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .background(AccentGold.copy(alpha = 0.15f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.EmojiEvents,
-                contentDescription = null,
-                tint = AccentGold,
-                modifier = Modifier.size(48.dp)
-            )
-        }
+        Icon(
+            imageVector = Icons.Default.CheckCircle,
+            contentDescription = "Success",
+            tint = SuccessGreen,
+            modifier = Modifier.size(72.dp)
+        )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text(
             text = "Session Completed!",
-            fontSize = 24.sp,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Your progress has been recorded into the Spaced Repetition system.",
-            fontSize = 13.sp,
+            text = "Great work! Your spaced repetition intervals and mastery scores have been updated.",
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
@@ -795,34 +992,52 @@ fun SessionCompletedView(
         Spacer(modifier = Modifier.height(24.dp))
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(20.dp),
-                horizontalArrangement = Arrangement.SpaceAround
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "${completed.totalLearned}",
-                        fontSize = 22.sp,
+                        text = "$scorePct%",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (scorePct >= 80) SuccessGreen else AccentGold
+                    )
+                    Text(
+                        text = "Accuracy",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(40.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant)
+                )
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "${phase.correctAnswers}/${phase.totalQuestions}",
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = PrimaryBlue
                     )
-                    Text("Words Studied", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "${String.format("%.0f", accuracy)}%",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SuccessGreen
+                        text = "Correct",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text("Accuracy", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -830,13 +1045,13 @@ fun SessionCompletedView(
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
-            onClick = onDone,
+            onClick = onFinish,
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .testTag("session_done_button"),
-            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-            shape = RoundedCornerShape(14.dp)
+                .height(50.dp)
+                .testTag("finish_session_button")
         ) {
             Text("Back to Dashboard", fontWeight = FontWeight.Bold)
         }

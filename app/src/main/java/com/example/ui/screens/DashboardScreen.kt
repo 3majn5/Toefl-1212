@@ -222,90 +222,43 @@ fun DashboardScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                                Surface(
-                                    color = AccentGold.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.clickable { showGoalDialog = !showGoalDialog }
+                                IconButton(
+                                    onClick = { showGoalDialog = true },
+                                    modifier = Modifier.testTag("button_configure_goal")
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Tune,
-                                            contentDescription = "Configure Daily Goal",
-                                            tint = AccentGold,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "$dailyGoal / day",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = AccentGold
-                                        )
-                                    }
-                                }
-                            }
-
-                            if (showGoalDialog) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "Choose Daily New Words Target:",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    listOf(5, 10, 15, 20, 25).forEach { count ->
-                                        FilterChip(
-                                            selected = dailyGoal == count,
-                                            onClick = {
-                                                viewModel.setDailyGoal(count)
-                                                showGoalDialog = false
-                                            },
-                                            label = { Text("$count") },
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = PrimaryBlue,
-                                                selectedLabelColor = Color.White
-                                            )
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.Tune,
+                                        contentDescription = "Configure Daily Lesson Size",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // Overall progress bar
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text(
-                                    text = "Mastery Progress",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium
+                                StatPill(
+                                    title = "Due Review",
+                                    count = stats.dueCount,
+                                    color = if (stats.dueCount > 0) WarningOrange else SuccessGreen,
+                                    modifier = Modifier.weight(1f)
                                 )
-                                Text(
-                                    text = "${stats.masteredCount} / 1212 (${String.format("%.1f", stats.overallCompletionPercent)}%)",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryBlue
+                                StatPill(
+                                    title = "New to Learn",
+                                    count = stats.newCount,
+                                    color = PrimaryBlue,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                StatPill(
+                                    title = "Mastered",
+                                    count = stats.masteredCount,
+                                    color = SuccessGreen,
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            LinearProgressIndicator(
-                                progress = { (stats.overallCompletionPercent / 100f).coerceIn(0f, 1f) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(8.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                color = PrimaryBlue,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
 
                             Spacer(modifier = Modifier.height(20.dp))
 
@@ -314,200 +267,221 @@ fun DashboardScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(52.dp)
-                                    .testTag("start_daily_session_button"),
+                                    .testTag("button_start_session"),
                                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                                shape = RoundedCornerShape(14.dp)
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
                                     contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (stats.dueCount > 0) "Start Session (${stats.dueCount} Due Words)" else "Start Today's Session",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
+                                    text = "Start Lesson Session",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
                     }
                 }
 
-                // Mastery Breakdown Stat Cards
+                // Overall Completion Progress
                 item {
-                    Text(
-                        text = "Vocabulary Learning Metrics",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                }
-
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        StatCard(
-                            title = "Mastered",
-                            value = "${stats.masteredCount}",
-                            icon = Icons.Default.CheckCircle,
-                            color = SuccessGreen,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                viewModel.setFilter(VocabFilter.MASTERED)
-                                onNavigateToBrowse()
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Vocabulary Progress",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = "${stats.overallCompletionPct.toInt()}%",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = PrimaryBlue
+                                )
                             }
-                        )
-                        StatCard(
-                            title = "Due Review",
-                            value = "${stats.dueCount}",
-                            icon = Icons.Default.Sync,
-                            color = WarningOrange,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                viewModel.setFilter(VocabFilter.DUE_REVIEW)
-                                onNavigateToBrowse()
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            LinearProgressIndicator(
+                                progress = { (stats.overallCompletionPct / 100f).coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(10.dp)
+                                    .clip(RoundedCornerShape(5.dp)),
+                                color = PrimaryBlue,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "${stats.learningCount + stats.reviewingCount + stats.masteredCount} of 1,212 introduced",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "${stats.masteredCount} mastered",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = SuccessGreen
+                                )
                             }
-                        )
-                        StatCard(
-                            title = "Difficult",
-                            value = "${stats.difficultCount}",
-                            icon = Icons.Default.Star,
-                            color = AccentGold,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                viewModel.setFilter(VocabFilter.DIFFICULT)
-                                onNavigateToBrowse()
-                            }
-                        )
+                        }
                     }
                 }
 
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        StatCard(
-                            title = "New Words",
-                            value = "${stats.newCount}",
-                            icon = Icons.Default.School,
-                            color = PrimaryBlue,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                viewModel.setFilter(VocabFilter.NEW_WORDS)
-                                onNavigateToBrowse()
-                            }
-                        )
-                        StatCard(
-                            title = "Forgotten",
-                            value = "${stats.forgottenCount}",
-                            icon = Icons.Default.Warning,
-                            color = ErrorRed,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                viewModel.setFilter(VocabFilter.ALL)
-                                viewModel.setSort(com.example.ui.viewmodel.VocabSort.BY_FORGOTTEN)
-                                onNavigateToBrowse()
-                            }
-                        )
-                        StatCard(
-                            title = "Bookmarked",
-                            value = "${stats.bookmarkedCount}",
-                            icon = Icons.Default.CollectionsBookmark,
-                            color = Navy800,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                viewModel.setFilter(VocabFilter.BOOKMARKED)
-                                onNavigateToBrowse()
-                            }
-                        )
-                    }
-                }
-
-                // Quick Navigation Hub
+                // Quick Navigation Cards
                 item {
                     Text(
                         text = "Explore & Practice",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
+                        fontSize = 17.sp,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
                     )
                 }
 
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        FeatureRowCard(
-                            title = "Browse All 1,212 Words",
-                            subtitle = "Browse by number (#1 to #1212), search, and listen to pronunciation",
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ActionCard(
+                            title = "Browse 1,212 Words",
+                            subtitle = "By #number, A-Z, or page",
                             icon = Icons.Default.CollectionsBookmark,
-                            iconColor = PrimaryBlue,
-                            testTag = "browse_all_button",
+                            color = PrimaryBlue,
                             onClick = {
                                 viewModel.setFilter(VocabFilter.ALL)
                                 onNavigateToBrowse()
-                            }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_browse_words")
                         )
-                        FeatureRowCard(
-                            title = "7 Learning Directions",
-                            subtitle = "Recognition, Reverse recall, Spelling, Context, Synonyms, Production, Listening",
+
+                        ActionCard(
+                            title = "7 Learning Modes",
+                            subtitle = "Recall, spelling, listening",
                             icon = Icons.Default.School,
-                            iconColor = SuccessGreen,
-                            testTag = "practice_modes_button",
-                            onClick = onNavigateToPractice
+                            color = AccentGold,
+                            onClick = onNavigateToPractice,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_practice_modes")
                         )
-                        FeatureRowCard(
-                            title = "46-Page PDF Extraction & Audit",
-                            subtitle = "Inspect source pages, review flagged OCR/duplicate items, and verify entries",
-                            icon = Icons.Default.AssignmentTurnedIn,
-                            iconColor = WarningOrange,
-                            testTag = "page_audit_button",
-                            onClick = onNavigateToAudit
+                    }
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ActionCard(
+                            title = "Difficult Words",
+                            subtitle = "${stats.difficultCount} flagged for review",
+                            icon = Icons.Default.Star,
+                            color = WarningOrange,
+                            onClick = {
+                                viewModel.setFilter(VocabFilter.DIFFICULT)
+                                onNavigateToBrowse()
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_difficult_words")
+                        )
+
+                        ActionCard(
+                            title = "Source Anomalies",
+                            subtitle = "27 duplicate/OCR notes",
+                            icon = Icons.Default.Warning,
+                            color = ErrorRed,
+                            onClick = onNavigateToAudit,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_audit_matrix")
                         )
                     }
                 }
             }
         }
     }
+
+    if (showGoalDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showGoalDialog = false },
+            title = { Text("Configure Daily Lesson Size") },
+            text = {
+                Column {
+                    Text("Select how many new words you want to introduce in each daily lesson session:")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(5, 10, 15, 20).forEach { count ->
+                            FilterChip(
+                                selected = dailyGoal == count,
+                                onClick = {
+                                    viewModel.setDailyGoal(count)
+                                },
+                                label = { Text("$count words") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PrimaryBlue,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showGoalDialog = false }) {
+                    Text("Done")
+                }
+            }
+        )
+    }
 }
 
 @Composable
-fun StatCard(
+private fun StatPill(
     title: String,
-    value: String,
-    icon: ImageVector,
+    count: Int,
     color: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    modifier: Modifier = Modifier
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(14.dp),
-        modifier = modifier.clickable { onClick() }
+    Surface(
+        color = color.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.Start
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .background(color.copy(alpha = 0.15f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = color,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = value,
+                text = "$count",
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
+                color = color
             )
             Text(
                 text = title,
@@ -519,57 +493,46 @@ fun StatCard(
 }
 
 @Composable
-fun FeatureRowCard(
+private fun ActionCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
-    iconColor: Color,
-    testTag: String,
-    onClick: () -> Unit
+    color: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(14.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .testTag(testTag)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.clickable(onClick = onClick)
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .background(iconColor.copy(alpha = 0.12f), CircleShape),
+                    .background(color.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = iconColor,
+                    tint = color,
                     modifier = Modifier.size(22.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Text(
+                text = subtitle,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
