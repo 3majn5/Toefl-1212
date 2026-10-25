@@ -1,17 +1,27 @@
 package com.example.data.repository
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.example.data.api.DictionaryApiService
 import com.example.data.db.AppDatabase
+import com.example.data.db.ReviewLogEntity
 import com.example.data.db.VocabEntity
 import com.example.data.model.DictionaryResult
+import com.example.data.model.FsrsRating
+import com.example.data.model.FsrsState
 import com.example.data.model.LearningDirection
 import com.example.data.model.PageAudit
 import com.example.data.model.QuizQuestion
+import com.example.data.model.SkillMasterySummary
+import com.example.data.model.StudyPlan
 import com.example.data.model.StudyStats
 import com.example.data.model.StudyStatus
 import com.example.data.model.UserVerificationStatus
 import com.example.data.model.VocabEntry
+import com.example.data.model.WorkloadForecast
+import com.example.util.AcademicVocabularyEnricher
+import com.example.util.BackupRestoreManager
+import com.example.util.FsrsScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -20,11 +30,15 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 class VocabRepository(private val context: Context) {
     private val db = AppDatabase.getInstance(context)
     private val dao = db.vocabDao()
+    private val prefs: SharedPreferences = context.getSharedPreferences("toefl_1212_study_prefs", Context.MODE_PRIVATE)
 
     private var cachedPagesAudit: List<PageAudit> = emptyList()
 
@@ -126,27 +140,28 @@ class VocabRepository(private val context: Context) {
 
             val phoneticVal = if (eObj.has("phonetic") && !eObj.isNull("phonetic")) eObj.getString("phonetic") else null
 
-            entries.add(
-                VocabEntry(
-                    entryNumber = eObj.getInt("entryNumber"),
-                    sourcePage = eObj.getInt("sourcePage"),
-                    headword = eObj.getString("headword"),
-                    rawText = eObj.getString("rawText"),
-                    definitions = defs,
-                    primaryMeaning = eObj.optString("primaryMeaning", if (defs.isNotEmpty()) defs[0] else ""),
-                    grammaticalLabels = gramms,
-                    notes = eObj.optString("notes", ""),
-                    hasDuplicateHeadword = eObj.optBoolean("hasDuplicateHeadword", false),
-                    duplicateWithNumbers = dups,
-                    hasAnomaly = eObj.optBoolean("hasAnomaly", false),
-                    anomalyNotes = eObj.optString("anomalyNotes", ""),
-                    exampleSentence = exSentence,
-                    dictionaryExamples = dictExamples,
-                    dictionaryDefinitions = dictDefs,
-                    dictionarySynonyms = dictSyns,
-                    phonetic = phoneticVal
-                )
+            val rawEntry = VocabEntry(
+                entryNumber = eObj.getInt("entryNumber"),
+                sourcePage = eObj.getInt("sourcePage"),
+                headword = eObj.getString("headword"),
+                rawText = eObj.getString("rawText"),
+                definitions = defs,
+                primaryMeaning = eObj.optString("primaryMeaning", if (defs.isNotEmpty()) defs[0] else ""),
+                grammaticalLabels = gramms,
+                notes = eObj.optString("notes", ""),
+                hasDuplicateHeadword = eObj.optBoolean("hasDuplicateHeadword", false),
+                duplicateWithNumbers = dups,
+                hasAnomaly = eObj.optBoolean("hasAnomaly", false),
+                anomalyNotes = eObj.optString("anomalyNotes", ""),
+                exampleSentence = exSentence,
+                dictionaryExamples = dictExamples,
+                dictionaryDefinitions = dictDefs,
+                dictionarySynonyms = dictSyns,
+                phonetic = phoneticVal
             )
+
+            // Enrich with academic collocations, word families, and common traps
+            entries.add(AcademicVocabularyEnricher.enrich(rawEntry))
         }
         return Pair(entries, pageAudits)
     }
@@ -205,6 +220,10 @@ class VocabRepository(private val context: Context) {
         runCatching { dao.getDueEntriesDirect(currentTime).map { it.toDomain() } }.getOrDefault(emptyList())
     }
 
+    suspend fun getOverdueEntries(currentTime: Long): List<VocabEntry> = withContext(Dispatchers.IO) {
+        runCatching { dao.getOverdueEntriesDirect(currentTime).map { it.toDomain() } }.getOrDefault(emptyList())
+    }
+
     suspend fun getNewEntries(limit: Int): List<VocabEntry> = withContext(Dispatchers.IO) {
         runCatching { dao.getNewEntriesDirect(limit).map { it.toDomain() } }.getOrDefault(emptyList())
     }
@@ -234,52 +253,244 @@ class VocabRepository(private val context: Context) {
         dao.updateVerification(entryNumber, status.name, correction, note)
     }
 
-    suspend fun recordStudyResult(entry: VocabEntry, isCorrect: Boolean, rating: Int = if (isCorrect) 2 else 0) = withContext(Dispatchers.IO) {
+    /**
+     * Records a spaced repetition recall outcome using FSRS.
+     */
+    suspend fun recordFsrsReview(
+        entry: VocabEntry,
+        rating: FsrsRating,
+        channel: String = "FSRS",
+        desiredRetention: Float = 0.90f
+    ) = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val oneDayMillis = 24 * 60 * 60 * 1000L
+        val result = FsrsScheduler.schedule(entry, rating, desiredRetention, now)
 
-        var easeFactor = entry.easeFactor
-        var repetitionCount = entry.repetitionCount
-        var forgottenCount = entry.forgottenCount
-        var intervalDays = entry.intervalDays
-        val reviewCount = entry.reviewCount + 1
+        val isSuccess = rating != FsrsRating.AGAIN
+        val newRepCount = if (isSuccess) entry.repetitionCount + 1 else entry.repetitionCount
+        val newReviewCount = entry.reviewCount + 1
+        val newForgottenCount = if (!isSuccess) entry.forgottenCount + 1 else entry.forgottenCount
 
-        if (isCorrect) {
-            repetitionCount += 1
-            intervalDays = when (repetitionCount) {
-                1 -> 1
-                2 -> 3
-                3 -> 6
-                else -> (intervalDays * easeFactor).toInt().coerceAtLeast(intervalDays + 1)
-            }
-            easeFactor += (0.1f - (3 - rating) * (0.08f + (3 - rating) * 0.02f))
-            if (easeFactor < 1.3f) easeFactor = 1.3f
-        } else {
-            repetitionCount = 0
-            forgottenCount += 1
-            intervalDays = 1
-            easeFactor = (easeFactor - 0.2f).coerceAtLeast(1.3f)
-        }
-
-        val studyStatus = when {
-            repetitionCount >= 5 -> StudyStatus.MASTERED
-            repetitionCount >= 2 -> StudyStatus.REVIEWING
+        val newStudyStatus = when {
+            result.newStability >= 14f && newRepCount >= 3 -> StudyStatus.MASTERED
+            result.newState == FsrsState.REVIEW.value && newRepCount >= 2 -> StudyStatus.REVIEWING
+            newRepCount >= 1 -> StudyStatus.LEARNING
             else -> StudyStatus.LEARNING
         }
 
-        val nextReview = now + (intervalDays * oneDayMillis)
-
-        dao.updateStudyProgress(
+        dao.updateFsrsProgress(
             entryNumber = entry.entryNumber,
-            studyStatus = studyStatus.name,
-            repetitionCount = repetitionCount,
-            reviewCount = reviewCount,
-            forgottenCount = forgottenCount,
-            easeFactor = easeFactor,
-            intervalDays = intervalDays,
-            nextReview = nextReview,
-            lastReviewed = now
+            studyStatus = newStudyStatus.name,
+            repetitionCount = newRepCount,
+            reviewCount = newReviewCount,
+            forgottenCount = newForgottenCount,
+            easeFactor = (10f - result.newDifficulty).coerceIn(1.3f, 3.5f),
+            intervalDays = result.intervalDays,
+            nextReview = result.nextReviewTimestamp,
+            lastReviewed = now,
+            stability = result.newStability,
+            difficulty = result.newDifficulty,
+            state = result.newState,
+            lapses = result.newLapses,
+            rating = result.lastRating
         )
+
+        dao.insertReviewLog(
+            ReviewLogEntity(
+                entryNumber = entry.entryNumber,
+                rating = rating.value,
+                reviewTimestamp = now,
+                scheduledDays = result.intervalDays,
+                stability = result.newStability,
+                difficulty = result.newDifficulty,
+                channel = channel
+            )
+        )
+    }
+
+    /**
+     * Backward-compatible simple quiz recorder.
+     */
+    suspend fun recordStudyResult(entry: VocabEntry, isCorrect: Boolean) = withContext(Dispatchers.IO) {
+        val rating = if (isCorrect) FsrsRating.GOOD else FsrsRating.AGAIN
+        recordFsrsReview(entry, rating, "QUIZ")
+    }
+
+    /**
+     * Records an attempt in one of the 7 skill practice channels.
+     */
+    suspend fun recordSkillPractice(
+        entry: VocabEntry,
+        direction: LearningDirection,
+        isCorrect: Boolean
+    ) = withContext(Dispatchers.IO) {
+        val succ = if (isCorrect) 1 else 0
+        when (direction) {
+            LearningDirection.RECOGNITION -> dao.incrementSkillStats(entry.entryNumber, recAtt = 1, recSucc = succ)
+            LearningDirection.REVERSE_RECALL -> dao.incrementSkillStats(entry.entryNumber, recallAtt = 1, recallSucc = succ)
+            LearningDirection.SPELLING -> dao.incrementSkillStats(entry.entryNumber, spellAtt = 1, spellSucc = succ)
+            LearningDirection.CONTEXT -> dao.incrementSkillStats(entry.entryNumber, ctxAtt = 1, ctxSucc = succ)
+            LearningDirection.SYNONYM -> dao.incrementSkillStats(entry.entryNumber, synAtt = 1, synSucc = succ)
+            LearningDirection.PRODUCTION -> dao.incrementSkillStats(entry.entryNumber, prodAtt = 1, prodSucc = succ)
+            LearningDirection.LISTENING -> dao.incrementSkillStats(entry.entryNumber, listAtt = 1, listSucc = succ)
+        }
+    }
+
+    /**
+     * Computes upcoming workload forecast for the next [daysAhead] days.
+     */
+    suspend fun getWorkloadForecast(daysAhead: Int = 7): List<WorkloadForecast> = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val oneDay = 24L * 60L * 60L * 1000L
+        val list = mutableListOf<WorkloadForecast>()
+        val sdf = SimpleDateFormat("EEE, MMM d", Locale.US)
+
+        for (i in 0 until daysAhead) {
+            val start = now + (i * oneDay)
+            val end = start + oneDay
+            val count = runCatching { dao.getEntriesDueBetween(start, end).size }.getOrDefault(0)
+            list.add(
+                WorkloadForecast(
+                    dayOffset = i,
+                    dateLabel = if (i == 0) "Today" else if (i == 1) "Tomorrow" else sdf.format(Date(start)),
+                    dueCount = count
+                )
+            )
+        }
+        list
+    }
+
+    /**
+     * Aggregates skill summaries across all 7 channels.
+     */
+    fun computeSkillSummaries(entries: List<VocabEntry>): List<SkillMasterySummary> {
+        return LearningDirection.values().map { dir ->
+            var attempts = 0
+            var successes = 0
+            var masteredCount = 0
+
+            for (e in entries) {
+                when (dir) {
+                    LearningDirection.RECOGNITION -> {
+                        attempts += e.recognitionAttempts
+                        successes += e.recognitionSuccesses
+                        if (e.recognitionSuccesses >= 2) masteredCount++
+                    }
+                    LearningDirection.REVERSE_RECALL -> {
+                        attempts += e.recallAttempts
+                        successes += e.recallSuccesses
+                        if (e.recallSuccesses >= 2) masteredCount++
+                    }
+                    LearningDirection.SPELLING -> {
+                        attempts += e.spellingAttempts
+                        successes += e.spellingSuccesses
+                        if (e.spellingSuccesses >= 2) masteredCount++
+                    }
+                    LearningDirection.CONTEXT -> {
+                        attempts += e.contextAttempts
+                        successes += e.contextSuccesses
+                        if (e.contextSuccesses >= 2) masteredCount++
+                    }
+                    LearningDirection.SYNONYM -> {
+                        attempts += e.synonymAttempts
+                        successes += e.synonymSuccesses
+                        if (e.synonymSuccesses >= 2) masteredCount++
+                    }
+                    LearningDirection.PRODUCTION -> {
+                        attempts += e.productionAttempts
+                        successes += e.productionSuccesses
+                        if (e.productionSuccesses >= 2) masteredCount++
+                    }
+                    LearningDirection.LISTENING -> {
+                        attempts += e.listeningAttempts
+                        successes += e.listeningSuccesses
+                        if (e.listeningSuccesses >= 2) masteredCount++
+                    }
+                }
+            }
+
+            val acc = if (attempts > 0) successes.toFloat() / attempts else 0f
+            SkillMasterySummary(
+                direction = dir,
+                attempts = attempts,
+                successes = successes,
+                accuracy = acc,
+                masteredWordsCount = masteredCount
+            )
+        }
+    }
+
+    /**
+     * Study Plan persistence using SharedPreferences.
+     */
+    fun getStudyPlan(): StudyPlan {
+        val targetDate = prefs.getLong("plan_target_exam_date", 0L).takeIf { it > 0 }
+        val dailyMin = prefs.getInt("plan_daily_minutes", 20)
+        val dailyWords = prefs.getInt("plan_daily_new_words", 10)
+        val retention = prefs.getFloat("plan_desired_retention", 0.90f)
+        val lastDay = prefs.getLong("plan_last_study_day", 0L)
+        val streak = prefs.getInt("plan_streak_days", 0)
+        val focusStr = prefs.getString("plan_focus_direction", null)
+        val focus = focusStr?.let { runCatching { LearningDirection.valueOf(it) }.getOrNull() }
+
+        return StudyPlan(
+            targetExamTimestamp = targetDate,
+            dailyMinutes = dailyMin,
+            dailyNewWords = dailyWords,
+            desiredRetention = retention,
+            focusDirection = focus,
+            lastStudyDay = lastDay,
+            streakDays = streak
+        )
+    }
+
+    fun saveStudyPlan(plan: StudyPlan) {
+        prefs.edit().apply {
+            putLong("plan_target_exam_date", plan.targetExamTimestamp ?: 0L)
+            putInt("plan_daily_minutes", plan.dailyMinutes)
+            putInt("plan_daily_new_words", plan.dailyNewWords)
+            putFloat("plan_desired_retention", plan.desiredRetention)
+            putLong("plan_last_study_day", plan.lastStudyDay)
+            putInt("plan_streak_days", plan.streakDays)
+            putString("plan_focus_direction", plan.focusDirection?.name)
+            apply()
+        }
+    }
+
+    /**
+     * Exports full state to JSON string.
+     */
+    suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
+        val all = getAllEntriesDirect()
+        val plan = getStudyPlan()
+        BackupRestoreManager.exportToJson(all, plan)
+    }
+
+    /**
+     * Exports entries to CSV.
+     */
+    suspend fun exportBackupCsv(): String = withContext(Dispatchers.IO) {
+        val all = getAllEntriesDirect()
+        BackupRestoreManager.exportToCsv(all)
+    }
+
+    /**
+     * Validates and restores from backup JSON transactionally.
+     */
+    suspend fun restoreFromJson(jsonString: String): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            val base = getAllEntriesDirect()
+            val parsedResult = BackupRestoreManager.validateAndParseJson(jsonString, base)
+            val backupData = parsedResult.getOrThrow()
+
+            // Safe transactional update
+            val entities = backupData.entries.map { VocabEntity.fromDomain(it) }
+            for (batch in entities.chunked(50)) {
+                dao.insertAll(batch)
+            }
+
+            backupData.studyPlan?.let { saveStudyPlan(it) }
+            backupData.entries.size
+        }
     }
 
     fun createQuestion(
@@ -299,73 +510,76 @@ class VocabRepository(private val context: Context) {
                 QuizQuestion(
                     id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Select the correct meaning for:",
+                    prompt = "Select the primary TOEFL definition for '${target.headword}':",
                     targetWord = target.headword,
                     options = options,
                     correctAnswer = correct,
-                    explanation = "'${target.headword}' (${target.grammaticalLabels.joinToString()}) means: ${target.primaryMeaning}",
-                    sourceDefinition = target.rawText,
+                    explanation = "'${target.headword}' (${target.grammaticalLabels.joinToString()}) means: $correct.",
+                    sourceDefinition = correct,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
             LearningDirection.REVERSE_RECALL -> {
                 val correct = target.headword
                 val options = (distractors.map { it.headword } + correct).shuffled()
+                val meaning = target.primaryMeaning.ifBlank { target.definitions.firstOrNull() ?: target.headword }
                 QuizQuestion(
                     id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Which vocabulary word matches this definition?",
-                    targetWord = target.primaryMeaning,
+                    prompt = "Which academic vocabulary word matches: \"$meaning\"?",
+                    targetWord = target.headword,
                     options = options,
                     correctAnswer = correct,
-                    explanation = "'${target.headword}' corresponds to: ${target.primaryMeaning} (PDF page ${target.sourcePage})",
-                    sourceDefinition = target.rawText,
+                    explanation = "\"$meaning\" defines '${target.headword}'.",
+                    sourceDefinition = meaning,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
             LearningDirection.SPELLING -> {
+                val meaning = target.primaryMeaning.ifBlank { target.definitions.firstOrNull() ?: target.headword }
                 QuizQuestion(
                     id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Spell the word that means: \"${target.primaryMeaning}\"",
+                    prompt = "Type the correct spelling for '${target.headword}' (Definition: $meaning):",
                     targetWord = target.headword,
                     options = emptyList(),
-                    correctAnswer = target.headword.trim().lowercase(),
-                    explanation = "Correct spelling: '${target.headword}'. Source entry #${target.entryNumber} on page ${target.sourcePage}.",
-                    sourceDefinition = target.rawText,
+                    correctAnswer = target.headword,
+                    explanation = "Correct spelling: '${target.headword}'. Phonetic: ${target.phonetic ?: "Standard American / British"}.",
+                    sourceDefinition = meaning,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
             LearningDirection.CONTEXT -> {
-                val sentence = generateContextSentence(target)
-                val correct = target.headword
-                val options = (distractors.map { it.headword } + correct).shuffled()
+                val example = target.exampleSentence.ifBlank {
+                    target.dictionaryExamples.firstOrNull() ?: "The researchers found that the phenomenon was ${target.headword} under natural conditions."
+                }
+                val blanked = example.replace(Regex("(?i)\\b${Regex.escape(target.headword)}\\b"), "_______")
+                val options = (distractors.map { it.headword } + target.headword).shuffled()
                 QuizQuestion(
                     id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Fill in the blank in the academic context:",
-                    targetWord = sentence,
+                    prompt = "Fill in the blank: \"$blanked\"",
+                    targetWord = target.headword,
                     options = options,
-                    correctAnswer = correct,
-                    explanation = "'${target.headword}' properly completes the context. Meaning: ${target.primaryMeaning}",
-                    sourceDefinition = target.rawText,
+                    correctAnswer = target.headword,
+                    explanation = "In this context: \"$example\".",
+                    sourceDefinition = target.primaryMeaning,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
             LearningDirection.SYNONYM -> {
-                val dictSyn = target.dictionarySynonyms.firstOrNull()
-                val targetSyn = dictSyn ?: target.definitions.firstOrNull() ?: target.primaryMeaning
-                val otherMeanings = distractors.map { it.primaryMeaning }.shuffled().take(3)
-                val options = (otherMeanings + targetSyn).shuffled()
+                val syns = target.dictionarySynonyms.filter { it.isNotBlank() }
+                val correct = if (syns.isNotEmpty()) syns.first() else target.primaryMeaning
+                val options = (distractors.map { it.dictionarySynonyms.firstOrNull() ?: it.primaryMeaning } + correct).shuffled()
                 QuizQuestion(
                     id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Identify the closest synonym for '${target.headword}':",
+                    prompt = "Which term is synonymous with '${target.headword}'?",
                     targetWord = target.headword,
                     options = options,
-                    correctAnswer = targetSyn,
-                    explanation = "A recognized synonym for '${target.headword}' is '${targetSyn}'.",
-                    sourceDefinition = target.rawText,
+                    correctAnswer = correct,
+                    explanation = "'${target.headword}' corresponds to '$correct' in academic discourse.",
+                    sourceDefinition = target.primaryMeaning,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
@@ -373,12 +587,12 @@ class VocabRepository(private val context: Context) {
                 QuizQuestion(
                     id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Write an authentic sentence demonstrating '${target.headword}' (${target.primaryMeaning}):",
+                    prompt = "Construct an authentic academic sentence utilizing the word '${target.headword}' (${target.primaryMeaning}):",
                     targetWord = target.headword,
                     options = emptyList(),
                     correctAnswer = target.headword,
-                    explanation = "Good usage involves demonstrating the target term in an appropriate academic register. Reference: ${target.exampleSentence.ifBlank { target.rawText }}",
-                    sourceDefinition = target.rawText,
+                    explanation = "Model sentence: \"${target.exampleSentence.ifBlank { target.dictionaryExamples.firstOrNull() ?: "Researchers concluded that ${target.headword} was essential." }}\"",
+                    sourceDefinition = target.primaryMeaning,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
@@ -388,49 +602,31 @@ class VocabRepository(private val context: Context) {
                 QuizQuestion(
                     id = UUID.randomUUID().toString(),
                     direction = direction,
-                    prompt = "Tap audio to listen, then select the spoken vocabulary item:",
+                    prompt = "Listen carefully to the audio and identify the spoken vocabulary word:",
                     targetWord = target.headword,
                     options = options,
                     correctAnswer = correct,
-                    explanation = "Spoken word: '${target.headword}'. Meaning: ${target.primaryMeaning} (Page ${target.sourcePage})",
-                    sourceDefinition = target.rawText,
+                    explanation = "The spoken word was '${target.headword}' (${target.primaryMeaning}).",
+                    sourceDefinition = target.primaryMeaning,
                     grammaticalLabel = target.grammaticalLabels.firstOrNull()
                 )
             }
         }
     }
 
-    private fun generateContextSentence(target: VocabEntry): String {
-        if (target.exampleSentence.isNotBlank()) {
-            val escapedWord = Regex.escape(target.headword.trim())
-            val regex = Regex("(?i)\\b$escapedWord\\b")
-            if (regex.containsMatchIn(target.exampleSentence)) {
-                return target.exampleSentence.replace(regex, "[_____]")
-            }
-            val firstWord = target.headword.split(" ").firstOrNull() ?: target.headword
-            val regexFirst = Regex("(?i)\\b" + Regex.escape(firstWord) + "\\b")
-            if (regexFirst.containsMatchIn(target.exampleSentence)) {
-                return target.exampleSentence.replace(regexFirst, "[_____]")
-            }
-        }
-        return "The researchers observed that conditions were optimal to [_____] during the experimental phase."
-    }
+    private val apiService = DictionaryApiService()
 
     suspend fun fetchOnlineDictionary(entry: VocabEntry): Result<DictionaryResult> = withContext(Dispatchers.IO) {
-        val result = DictionaryApiService().fetchDefinition(entry.headword)
+        val result = apiService.fetchDefinition(entry.headword)
         if (result.isSuccess) {
-            val dict = result.getOrNull()
-            if (dict != null) {
-                val combinedExamples = (dict.examples + entry.exampleSentence).filter { it.isNotBlank() }.distinct()
-                val combinedSynonyms = (dict.synonyms + entry.dictionarySynonyms + entry.definitions).filter { it.isNotBlank() && it.lowercase() != entry.headword.lowercase() }.distinct()
-                dao.updateDictionaryData(
-                    entryNumber = entry.entryNumber,
-                    examples = combinedExamples,
-                    definitions = dict.definitions,
-                    synonyms = combinedSynonyms,
-                    phonetic = dict.phonetic
-                )
-            }
+            val data = result.getOrThrow()
+            dao.updateDictionaryData(
+                entryNumber = entry.entryNumber,
+                examples = data.examples,
+                definitions = data.definitions,
+                synonyms = data.synonyms,
+                phonetic = data.phonetic
+            )
         }
         result
     }
@@ -449,6 +645,9 @@ class VocabRepository(private val context: Context) {
         var forgottenCount = 0
         var difficultCount = 0
         var bookmarkedCount = 0
+        var activeRecalled = 0
+        var totalRetrievabilitySum = 0f
+        var nonNewCardsCount = 0
 
         val now = System.currentTimeMillis()
 
@@ -478,10 +677,23 @@ class VocabRepository(private val context: Context) {
             if (e.isBookmarked) {
                 bookmarkedCount++
             }
+            if (e.isActivelyUsable) {
+                activeRecalled++
+            }
+
+            if (e.studyStatus != StudyStatus.NEW && e.fsrsStability > 0f) {
+                val elapsedDays = (now - (e.lastReviewedTimestamp ?: now)).toFloat() / (1000f * 60f * 60f * 24f)
+                totalRetrievabilitySum += FsrsScheduler.calculateRetrievability(elapsedDays, e.fsrsStability)
+                nonNewCardsCount++
+            }
         }
 
         val learnedTotal = learningCount + reviewingCount + masteredCount
         val completion = if (total > 0) (learnedTotal.toFloat() / total) * 100f else 0f
+        val avgRetention = if (nonNewCardsCount > 0) (totalRetrievabilitySum / nonNewCardsCount) * 100f else 90f
+
+        // Estimated study minutes: due words * 0.75 min + new target words * 1.5 min
+        val estimatedMinutes = (dueCount * 0.75f + (minOf(15, newCount)) * 1.5f).toInt()
 
         return StudyStats(
             totalEntries = total,
@@ -497,7 +709,10 @@ class VocabRepository(private val context: Context) {
             forgottenCount = forgottenCount,
             difficultCount = difficultCount,
             bookmarkedCount = bookmarkedCount,
-            overallCompletionPct = completion
+            overallCompletionPct = completion,
+            retentionRatePct = avgRetention,
+            estimatedStudyMinutesRemaining = estimatedMinutes,
+            activeRecalledCount = activeRecalled
         )
     }
 }

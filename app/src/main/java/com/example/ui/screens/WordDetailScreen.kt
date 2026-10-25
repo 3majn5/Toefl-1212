@@ -23,11 +23,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -37,15 +43,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -73,10 +79,16 @@ import com.example.ui.components.StatusBadge
 import com.example.ui.components.TtsButton
 import com.example.ui.components.VerificationBadge
 import com.example.ui.theme.AccentGold
+import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningOrange
 import com.example.ui.viewmodel.VocabViewModel
+import com.example.util.AcademicVocabularyEnricher
+import com.example.util.FsrsScheduler
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,6 +104,9 @@ fun WordDetailScreen(
     val dictMessage by viewModel.dictionaryMessage.collectAsState()
 
     var showEditDialog by remember { mutableStateOf(false) }
+
+    // Enrich entry with verified collocations, word families, grammar patterns, learner traps
+    val enrichedEntry = remember(entry) { AcademicVocabularyEnricher.enrich(entry) }
 
     Scaffold(
         topBar = {
@@ -145,9 +160,7 @@ fun WordDetailScreen(
             // Main Headword Header Card
             item {
                 Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -167,7 +180,7 @@ fun WordDetailScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "PDF Page ${entry.sourcePage}",
+                                    text = "Source Page ${entry.sourcePage} / 46",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -200,6 +213,22 @@ fun WordDetailScreen(
                             )
                         }
 
+                        if (enrichedEntry.registerFormality.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                color = PrimaryBlue.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = "Register: ${enrichedEntry.registerFormality}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = PrimaryBlue,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -208,6 +237,95 @@ fun WordDetailScreen(
                                 AnomalyBadge(notes = entry.anomalyNotes)
                             }
                         }
+                    }
+                }
+            }
+
+            // FSRS Memory & Retention Science Card
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Psychology,
+                                    contentDescription = null,
+                                    tint = PrimaryBlue,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "FSRS Memory Status",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                            }
+                            val retrievability = if (entry.lastReviewedTimestamp != null && entry.fsrsStability > 0f) {
+                                val elapsedDays = ((System.currentTimeMillis() - entry.lastReviewedTimestamp) / 86400000L).toInt()
+                                val r = FsrsScheduler.calculateRetrievability(entry.fsrsStability, elapsedDays)
+                                "${(r * 100).toInt()}% recall prob"
+                            } else {
+                                "Untested"
+                            }
+                            Text(
+                                text = retrievability,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (entry.fsrsStability > 2f) SuccessGreen else AccentGold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FsrsStatBox(
+                                label = "Stability (S)",
+                                value = if (entry.fsrsStability > 0f) "${String.format(Locale.US, "%.1f", entry.fsrsStability)}d" else "0d",
+                                subtitle = "Memory half-life",
+                                modifier = Modifier.weight(1f)
+                            )
+                            FsrsStatBox(
+                                label = "Difficulty (D)",
+                                value = if (entry.fsrsDifficulty > 0f) String.format(Locale.US, "%.1f", entry.fsrsDifficulty) else "5.0",
+                                subtitle = "Scale 1 - 10",
+                                modifier = Modifier.weight(1f)
+                            )
+                            FsrsStatBox(
+                                label = "Lapses",
+                                value = "${entry.fsrsLapses}",
+                                subtitle = "Forgotten times",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val nextReviewText = if (entry.nextReviewTimestamp > 0L) {
+                            val sdf = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                            val isOverdue = System.currentTimeMillis() > entry.nextReviewTimestamp
+                            val prefix = if (isOverdue) "Overdue (due " else "Scheduled for "
+                            prefix + sdf.format(Date(entry.nextReviewTimestamp)) + (if (isOverdue) ")" else "")
+                        } else {
+                            "Due immediately upon lesson start"
+                        }
+
+                        Text(
+                            text = nextReviewText,
+                            fontSize = 12.sp,
+                            color = if (entry.nextReviewTimestamp > 0L && System.currentTimeMillis() > entry.nextReviewTimestamp) WarningOrange else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -223,7 +341,7 @@ fun WordDetailScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Original PDF Source (Page ${entry.sourcePage})",
+                            text = "Original PDF Source (Page ${entry.sourcePage} / 46)",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = PrimaryBlue
@@ -240,12 +358,10 @@ fun WordDetailScreen(
                 }
             }
 
-            // Definitions & Synonyms Card
+            // Definitions & Meanings Card
             item {
                 Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -290,12 +406,181 @@ fun WordDetailScreen(
                 }
             }
 
+            // Academic Collocations & Prepositions (Knowledge Profile)
+            if (enrichedEntry.collocations.isNotEmpty() || enrichedEntry.grammarPatterns.isNotEmpty()) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.School,
+                                    contentDescription = null,
+                                    tint = PrimaryBlue,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Academic Collocations & Prepositions",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                            }
+
+                            if (enrichedEntry.grammarPatterns.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "Required Syntax & Preposition Rules:",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = PrimaryBlue
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                enrichedEntry.grammarPatterns.forEach { pattern ->
+                                    Surface(
+                                        color = PrimaryBlue.copy(alpha = 0.08f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = pattern,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (enrichedEntry.collocations.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "High-Yield Academic Phrases:",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                enrichedEntry.collocations.forEach { col ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "• $col",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        TtsButton(text = col, onSpeak = { viewModel.speak(it) }, size = 18)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Word Family & Morphological Derivatives
+            if (enrichedEntry.wordFamily.isNotEmpty()) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Lightbulb,
+                                    contentDescription = null,
+                                    tint = AccentGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Word Family Derivatives",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                enrichedEntry.wordFamily.forEach { form ->
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.clickable { viewModel.speak(form) }
+                                    ) {
+                                        Text(
+                                            text = form,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Common Learner Traps & Usage Mistakes
+            if (enrichedEntry.commonMistakes.isNotBlank()) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = WarningOrange.copy(alpha = 0.08f)),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = WarningOrange,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Common Learner Trap / TOEFL Caution",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = WarningOrange
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = enrichedEntry.commonMistakes,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+
             // Contextual Sentence & Authentic TOEFL Usage
             item {
                 Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -362,12 +647,37 @@ fun WordDetailScreen(
                 }
             }
 
+            // 7-Channel Skill Mastery Breakdown for this Word
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(
+                            text = "Skill-Specific Mastery (7 Channels)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        ChannelSkillRow("Definition Recognition", entry.recognitionAttempts, entry.recognitionSuccesses)
+                        ChannelSkillRow("Reverse Recall", entry.recallAttempts, entry.recallSuccesses)
+                        ChannelSkillRow("Spelling & Typing", entry.spellingAttempts, entry.spellingSuccesses)
+                        ChannelSkillRow("Context Gap-Fill", entry.contextAttempts, entry.contextSuccesses)
+                        ChannelSkillRow("Synonym Discrimination", entry.synonymAttempts, entry.synonymSuccesses)
+                        ChannelSkillRow("Sentence Production", entry.productionAttempts, entry.productionSuccesses)
+                        ChannelSkillRow("Listening Recognition", entry.listeningAttempts, entry.listeningSuccesses)
+                    }
+                }
+            }
+
             // Academic Dictionary & Synonyms
             item {
                 Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -448,7 +758,7 @@ fun WordDetailScreen(
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Text(
-                            text = "External Dictionaries:",
+                            text = "External Authoritative Dictionaries:",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -475,9 +785,7 @@ fun WordDetailScreen(
             // User Verification & Corrections Card
             item {
                 Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -613,6 +921,71 @@ fun WordDetailScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun FsrsStatBox(
+    label: String,
+    value: String,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(10.dp),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = value,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = PrimaryBlue
+            )
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = subtitle,
+                fontSize = 9.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChannelSkillRow(name: String, attempts: Int, successes: Int) {
+    val pct = if (attempts > 0) (successes.toFloat() / attempts.toFloat()) else 0f
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = if (attempts > 0) "${(pct * 100).toInt()}% ($successes/$attempts)" else "Not attempted",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (attempts > 0) PrimaryBlue else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        LinearProgressIndicator(
+            progress = { pct },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = if (pct >= 0.8f) SuccessGreen else if (pct >= 0.5f) PrimaryBlue else AccentGold,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
         )
     }
 }

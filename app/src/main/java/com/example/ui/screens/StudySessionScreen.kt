@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -66,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.FsrsRating
 import com.example.data.model.LearningDirection
 import com.example.data.model.QuizQuestion
 import com.example.data.model.VocabEntry
@@ -94,6 +96,7 @@ fun StudySessionScreen(
                 title = {
                     Text(
                         text = when (phase) {
+                            is SessionPhase.FsrsFlashcards -> "FSRS Spaced Review"
                             is SessionPhase.IntroNew -> "Study Card"
                             is SessionPhase.Quiz -> "Active Practice"
                             is SessionPhase.MistakeReview -> "Mistake Reinforcement"
@@ -135,6 +138,16 @@ fun StudySessionScreen(
                     IdleView(
                         onStartDaily = { viewModel.startDailySession() },
                         onBack = onFinish
+                    )
+                }
+                is SessionPhase.FsrsFlashcards -> {
+                    FsrsFlashcardView(
+                        phase = currentPhase,
+                        viewModel = viewModel,
+                        onSpeak = { viewModel.speak(it) },
+                        onRate = { entry, rating ->
+                            viewModel.recordFsrsRating(entry, rating)
+                        }
                     )
                 }
                 is SessionPhase.IntroNew -> {
@@ -202,7 +215,7 @@ private fun IdleView(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Ready to boost your TOEFL score? Start today's recommended spaced review.",
+            text = "Ready to boost your TOEFL score? Start today's recommended FSRS spaced review.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -213,7 +226,7 @@ private fun IdleView(
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth().testTag("idle_start_button")
         ) {
-            Text("Start Daily Session", fontWeight = FontWeight.Bold)
+            Text("Start FSRS Daily Session", fontWeight = FontWeight.Bold)
         }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
@@ -222,6 +235,361 @@ private fun IdleView(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Back to Dashboard")
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FsrsFlashcardView(
+    phase: SessionPhase.FsrsFlashcards,
+    viewModel: VocabViewModel,
+    onSpeak: (String) -> Unit,
+    onRate: (VocabEntry, FsrsRating) -> Unit
+) {
+    val entry = phase.entries.getOrNull(phase.currentIndex) ?: return
+    var isFlipped by remember(phase.currentIndex) { mutableStateOf(false) }
+
+    val rotation by animateFloatAsState(
+        targetValue = if (isFlipped) 180f else 0f,
+        animationSpec = tween(350),
+        label = "card_rotation"
+    )
+
+    val previews = remember(entry) {
+        viewModel.previewFsrsIntervals(entry)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Progress
+        LinearProgressIndicator(
+            progress = { (phase.currentIndex + 1) / phase.entries.size.toFloat() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            color = PrimaryBlue
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Review ${phase.currentIndex + 1} of ${phase.entries.size}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Page ${entry.sourcePage} • Word #${entry.entryNumber}",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = PrimaryBlue
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // 3D Flip Card
+        Card(
+            onClick = { isFlipped = !isFlipped },
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .graphicsLayer {
+                    rotationY = rotation
+                    cameraDistance = 12f * density
+                }
+                .testTag("fsrs_flashcard")
+        ) {
+            if (rotation <= 90f) {
+                // Front
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = entry.headword,
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryBlue,
+                        textAlign = TextAlign.Center
+                    )
+
+                    entry.phonetic?.let { p ->
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = p,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    IconButton(
+                        onClick = { onSpeak(entry.headword) },
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryBlue.copy(alpha = 0.15f))
+                            .testTag("card_speak_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                            contentDescription = "Pronounce",
+                            tint = PrimaryBlue,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    if (entry.grammaticalLabels.isNotEmpty()) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            entry.grammaticalLabels.forEach { label ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(SecondaryIndigo.copy(alpha = 0.15f))
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = SecondaryIndigo,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(30.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Flip,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Tap to reveal definition, collocations & synonyms",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                // Back
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { rotationY = 180f }
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = entry.headword,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryBlue
+                        )
+                        TtsButton(text = entry.headword, onSpeak = onSpeak)
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Definition:",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = entry.primaryMeaning,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    // Dictionary Synonyms
+                    if (entry.dictionarySynonyms.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = AccentGold,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Dictionary Synonyms:",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = AccentGold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            entry.dictionarySynonyms.forEach { syn ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(AccentGold.copy(alpha = 0.15f))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = syn,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Academic Collocations
+                    if (entry.collocations.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Academic Collocations:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryBlue
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        entry.collocations.take(3).forEach { coll ->
+                            Text(
+                                text = "• $coll",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    // Example in context
+                    val ex = entry.exampleSentence.ifBlank { entry.dictionaryExamples.firstOrNull() ?: "" }
+                    if (ex.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Context Example:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = "\"$ex\"",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontStyle = FontStyle.Italic
+                        )
+                    }
+
+                    // Learner Trap Note
+                    if (entry.commonMistakes.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Warning, contentDescription = null, tint = WarningOrange, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = entry.commonMistakes,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = WarningOrange,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // FSRS 4 Rating Buttons
+        if (!isFlipped) {
+            Button(
+                onClick = { isFlipped = true },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .testTag("show_answer_button")
+            ) {
+                Icon(imageVector = Icons.Default.Flip, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Show Answer", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                previews.forEach { preview ->
+                    val (btnColor, btnText) = when (preview.rating) {
+                        FsrsRating.AGAIN -> Pair(ErrorRed, "Again")
+                        FsrsRating.HARD -> Pair(WarningOrange, "Hard")
+                        FsrsRating.GOOD -> Pair(PrimaryBlue, "Good")
+                        FsrsRating.EASY -> Pair(SuccessGreen, "Easy")
+                    }
+
+                    Button(
+                        onClick = {
+                            isFlipped = false
+                            onRate(entry, preview.rating)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = btnColor),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                            .testTag("rating_button_${preview.rating.name.lowercase()}")
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = btnText,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = preview.intervalText,
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -247,7 +615,6 @@ private fun IntroCardView(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Progress
         LinearProgressIndicator(
             progress = { (phase.currentIndex + 1) / phase.entries.size.toFloat() },
             modifier = Modifier
@@ -276,7 +643,6 @@ private fun IntroCardView(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Interactive Flip Card
         Card(
             onClick = { isFlipped = !isFlipped },
             shape = RoundedCornerShape(20.dp),
@@ -294,7 +660,6 @@ private fun IntroCardView(
                 .testTag("flashcard_flip_card")
         ) {
             if (rotation <= 90f) {
-                // Front Side
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -383,7 +748,6 @@ private fun IntroCardView(
                     }
                 }
             } else {
-                // Back Side (mirrored back so text is normal)
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -419,7 +783,6 @@ private fun IntroCardView(
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    // Dictionary Synonyms (requested feature)
                     if (entry.dictionarySynonyms.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(14.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -451,7 +814,6 @@ private fun IntroCardView(
                                 ) {
                                     Text(
                                         text = syn,
-                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium
                                     )
@@ -460,7 +822,6 @@ private fun IntroCardView(
                         }
                     }
 
-                    // Example Sentence
                     val example = entry.exampleSentence.ifBlank {
                         entry.dictionaryExamples.firstOrNull() ?: ""
                     }
@@ -476,8 +837,7 @@ private fun IntroCardView(
                         Text(
                             text = "\"$example\"",
                             style = MaterialTheme.typography.bodyMedium,
-                            fontStyle = FontStyle.Italic,
-                            color = MaterialTheme.colorScheme.onSurface
+                            fontStyle = FontStyle.Italic
                         )
                     }
 
@@ -495,7 +855,6 @@ private fun IntroCardView(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Controls
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -546,7 +905,6 @@ private fun QuizView(
     var hasAnswered by remember(phase.currentIndex) { mutableStateOf(false) }
     var isCorrectAnswer by remember(phase.currentIndex) { mutableStateOf(false) }
 
-    // Auto-speak listening questions
     LaunchedEffect(phase.currentIndex) {
         if (question.direction == LearningDirection.LISTENING) {
             onSpeak(question.targetWord)
@@ -559,7 +917,6 @@ private fun QuizView(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // Progress Bar
         LinearProgressIndicator(
             progress = { (phase.currentIndex + 1) / phase.questions.size.toFloat() },
             modifier = Modifier
@@ -599,7 +956,6 @@ private fun QuizView(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // Question Prompt Card
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
@@ -650,9 +1006,7 @@ private fun QuizView(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Interaction Area based on Direction
         when {
-            // SPELLING
             question.direction == LearningDirection.SPELLING -> {
                 OutlinedTextField(
                     value = spellingInput,
@@ -684,7 +1038,6 @@ private fun QuizView(
                 }
             }
 
-            // PRODUCTION
             question.direction == LearningDirection.PRODUCTION -> {
                 OutlinedTextField(
                     value = productionInput,
@@ -716,7 +1069,6 @@ private fun QuizView(
                 }
             }
 
-            // MULTIPLE CHOICE (RECOGNITION, RECALL, CONTEXT, SYNONYM, LISTENING)
             else -> {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     question.options.forEachIndexed { index, option ->
@@ -784,7 +1136,6 @@ private fun QuizView(
             }
         }
 
-        // Post-Answer Feedback & Next Button
         AnimatedVisibility(visible = hasAnswered) {
             Column(modifier = Modifier.padding(top = 20.dp)) {
                 Card(
@@ -983,7 +1334,11 @@ private fun CompletedView(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Great work! Your spaced repetition intervals and mastery scores have been updated.",
+            text = if (phase.srsReviewed > 0) {
+                "${phase.srsReviewed} words reviewed using FSRS memory intervals. Your retention profile has been updated."
+            } else {
+                "Great work! Your practice scores and spaced repetition intervals have been updated."
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -1034,7 +1389,7 @@ private fun CompletedView(
                         color = PrimaryBlue
                     )
                     Text(
-                        text = "Correct",
+                        text = "Completed",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

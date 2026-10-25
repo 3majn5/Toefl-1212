@@ -37,7 +37,38 @@ data class VocabEntity(
     val easeFactor: Float = 2.5f,
     val intervalDays: Int = 0,
     val nextReviewTimestamp: Long = 0L,
-    val lastReviewedTimestamp: Long? = null
+    val lastReviewedTimestamp: Long? = null,
+
+    // FSRS Spaced Repetition Parameters
+    val fsrsStability: Float = 0f,
+    val fsrsDifficulty: Float = 5.0f,
+    val fsrsState: Int = 0,
+    val fsrsLapses: Int = 0,
+    val lastRating: Int = 0,
+
+    // Skill-Specific Mastery Tracking (7 Channels)
+    val recognitionAttempts: Int = 0,
+    val recognitionSuccesses: Int = 0,
+    val recallAttempts: Int = 0,
+    val recallSuccesses: Int = 0,
+    val spellingAttempts: Int = 0,
+    val spellingSuccesses: Int = 0,
+    val contextAttempts: Int = 0,
+    val contextSuccesses: Int = 0,
+    val synonymAttempts: Int = 0,
+    val synonymSuccesses: Int = 0,
+    val productionAttempts: Int = 0,
+    val productionSuccesses: Int = 0,
+    val listeningAttempts: Int = 0,
+    val listeningSuccesses: Int = 0,
+
+    // Rich Linguistic Profile
+    val collocations: List<String> = emptyList(),
+    val wordFamily: List<String> = emptyList(),
+    val grammarPatterns: List<String> = emptyList(),
+    val commonMistakes: String = "",
+    val registerFormality: String = "",
+    val antonyms: List<String> = emptyList()
 ) {
     fun toDomain(): VocabEntry {
         return VocabEntry(
@@ -70,7 +101,32 @@ data class VocabEntity(
             easeFactor = easeFactor,
             intervalDays = intervalDays,
             nextReviewTimestamp = nextReviewTimestamp,
-            lastReviewedTimestamp = lastReviewedTimestamp
+            lastReviewedTimestamp = lastReviewedTimestamp,
+            fsrsStability = fsrsStability,
+            fsrsDifficulty = fsrsDifficulty,
+            fsrsState = fsrsState,
+            fsrsLapses = fsrsLapses,
+            lastRating = lastRating,
+            recognitionAttempts = recognitionAttempts,
+            recognitionSuccesses = recognitionSuccesses,
+            recallAttempts = recallAttempts,
+            recallSuccesses = recallSuccesses,
+            spellingAttempts = spellingAttempts,
+            spellingSuccesses = spellingSuccesses,
+            contextAttempts = contextAttempts,
+            contextSuccesses = contextSuccesses,
+            synonymAttempts = synonymAttempts,
+            synonymSuccesses = synonymSuccesses,
+            productionAttempts = productionAttempts,
+            productionSuccesses = productionSuccesses,
+            listeningAttempts = listeningAttempts,
+            listeningSuccesses = listeningSuccesses,
+            collocations = collocations,
+            wordFamily = wordFamily,
+            grammarPatterns = grammarPatterns,
+            commonMistakes = commonMistakes,
+            registerFormality = registerFormality,
+            antonyms = antonyms
         )
     }
 
@@ -106,7 +162,32 @@ data class VocabEntity(
                 easeFactor = entry.easeFactor,
                 intervalDays = entry.intervalDays,
                 nextReviewTimestamp = entry.nextReviewTimestamp,
-                lastReviewedTimestamp = entry.lastReviewedTimestamp
+                lastReviewedTimestamp = entry.lastReviewedTimestamp,
+                fsrsStability = entry.fsrsStability,
+                fsrsDifficulty = entry.fsrsDifficulty,
+                fsrsState = entry.fsrsState,
+                fsrsLapses = entry.fsrsLapses,
+                lastRating = entry.lastRating,
+                recognitionAttempts = entry.recognitionAttempts,
+                recognitionSuccesses = entry.recognitionSuccesses,
+                recallAttempts = entry.recallAttempts,
+                recallSuccesses = entry.recallSuccesses,
+                spellingAttempts = entry.spellingAttempts,
+                spellingSuccesses = entry.spellingSuccesses,
+                contextAttempts = entry.contextAttempts,
+                contextSuccesses = entry.contextSuccesses,
+                synonymAttempts = entry.synonymAttempts,
+                synonymSuccesses = entry.synonymSuccesses,
+                productionAttempts = entry.productionAttempts,
+                productionSuccesses = entry.productionSuccesses,
+                listeningAttempts = entry.listeningAttempts,
+                listeningSuccesses = entry.listeningSuccesses,
+                collocations = entry.collocations,
+                wordFamily = entry.wordFamily,
+                grammarPatterns = entry.grammarPatterns,
+                commonMistakes = entry.commonMistakes,
+                registerFormality = entry.registerFormality,
+                antonyms = entry.antonyms
             )
         }
     }

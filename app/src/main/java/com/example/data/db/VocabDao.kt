@@ -46,6 +46,12 @@ interface VocabDao {
     @Query("SELECT * FROM vocab_entries WHERE studyStatus != 'NEW' AND nextReviewTimestamp <= :currentTime ORDER BY nextReviewTimestamp ASC")
     suspend fun getDueEntriesDirect(currentTime: Long): List<VocabEntity>
 
+    @Query("SELECT * FROM vocab_entries WHERE studyStatus != 'NEW' AND nextReviewTimestamp < :currentTime - (24 * 60 * 60 * 1000) ORDER BY nextReviewTimestamp ASC")
+    suspend fun getOverdueEntriesDirect(currentTime: Long): List<VocabEntity>
+
+    @Query("SELECT * FROM vocab_entries WHERE nextReviewTimestamp >= :start AND nextReviewTimestamp < :end")
+    suspend fun getEntriesDueBetween(start: Long, end: Long): List<VocabEntity>
+
     @Query("SELECT * FROM vocab_entries WHERE studyStatus = 'NEW' ORDER BY entryNumber ASC LIMIT :limit")
     suspend fun getNewEntriesDirect(limit: Int): List<VocabEntity>
 
@@ -85,10 +91,15 @@ interface VocabDao {
             easeFactor = :easeFactor,
             intervalDays = :intervalDays,
             nextReviewTimestamp = :nextReview,
-            lastReviewedTimestamp = :lastReviewed
+            lastReviewedTimestamp = :lastReviewed,
+            fsrsStability = :stability,
+            fsrsDifficulty = :difficulty,
+            fsrsState = :state,
+            fsrsLapses = :lapses,
+            lastRating = :rating
         WHERE entryNumber = :entryNumber
     """)
-    suspend fun updateStudyProgress(
+    suspend fun updateFsrsProgress(
         entryNumber: Int,
         studyStatus: String,
         repetitionCount: Int,
@@ -97,7 +108,12 @@ interface VocabDao {
         easeFactor: Float,
         intervalDays: Int,
         nextReview: Long,
-        lastReviewed: Long
+        lastReviewed: Long,
+        stability: Float,
+        difficulty: Float,
+        state: Int,
+        lapses: Int,
+        rating: Int
     )
 
     @Query("""
@@ -115,4 +131,68 @@ interface VocabDao {
         synonyms: List<String>,
         phonetic: String?
     )
+
+    @Query("""
+        UPDATE vocab_entries 
+        SET collocations = :collocations,
+            wordFamily = :wordFamily,
+            grammarPatterns = :grammarPatterns,
+            commonMistakes = :commonMistakes,
+            registerFormality = :registerFormality,
+            antonyms = :antonyms
+        WHERE entryNumber = :entryNumber
+    """)
+    suspend fun updateLinguisticProfile(
+        entryNumber: Int,
+        collocations: List<String>,
+        wordFamily: List<String>,
+        grammarPatterns: List<String>,
+        commonMistakes: String,
+        registerFormality: String,
+        antonyms: List<String>
+    )
+
+    @Query("""
+        UPDATE vocab_entries
+        SET recognitionAttempts = recognitionAttempts + :recAtt,
+            recognitionSuccesses = recognitionSuccesses + :recSucc,
+            recallAttempts = recallAttempts + :recallAtt,
+            recallSuccesses = recallSuccesses + :recallSucc,
+            spellingAttempts = spellingAttempts + :spellAtt,
+            spellingSuccesses = spellingSuccesses + :spellSucc,
+            contextAttempts = contextAttempts + :ctxAtt,
+            contextSuccesses = contextSuccesses + :ctxSucc,
+            synonymAttempts = synonymAttempts + :synAtt,
+            synonymSuccesses = synonymSuccesses + :synSucc,
+            productionAttempts = productionAttempts + :prodAtt,
+            productionSuccesses = productionSuccesses + :prodSucc,
+            listeningAttempts = listeningAttempts + :listAtt,
+            listeningSuccesses = listeningSuccesses + :listSucc
+        WHERE entryNumber = :entryNumber
+    """)
+    suspend fun incrementSkillStats(
+        entryNumber: Int,
+        recAtt: Int = 0, recSucc: Int = 0,
+        recallAtt: Int = 0, recallSucc: Int = 0,
+        spellAtt: Int = 0, spellSucc: Int = 0,
+        ctxAtt: Int = 0, ctxSucc: Int = 0,
+        synAtt: Int = 0, synSucc: Int = 0,
+        prodAtt: Int = 0, prodSucc: Int = 0,
+        listAtt: Int = 0, listSucc: Int = 0
+    )
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertReviewLog(log: ReviewLogEntity)
+
+    @Query("SELECT * FROM review_logs WHERE entryNumber = :entryNumber ORDER BY reviewTimestamp DESC")
+    suspend fun getReviewLogsForWord(entryNumber: Int): List<ReviewLogEntity>
+
+    @Query("SELECT * FROM review_logs ORDER BY reviewTimestamp DESC LIMIT :limit")
+    suspend fun getRecentReviewLogs(limit: Int): List<ReviewLogEntity>
+
+    @Query("DELETE FROM vocab_entries")
+    suspend fun deleteAllEntries()
+
+    @Query("DELETE FROM review_logs")
+    suspend fun deleteAllReviewLogs()
 }

@@ -6,7 +6,14 @@ import java.util.Locale
 
 class TtsHelper(context: Context) {
     private var tts: TextToSpeech? = null
-    private var isReady = false
+    var isReady: Boolean = false
+        private set
+
+    var currentRate: Float = 1.0f
+        private set
+
+    var currentLocale: Locale = Locale.US
+        private set
 
     init {
         try {
@@ -14,9 +21,10 @@ class TtsHelper(context: Context) {
                 if (status == TextToSpeech.SUCCESS) {
                     try {
                         tts?.let {
-                            val result = it.setLanguage(Locale.US)
+                            val result = it.setLanguage(currentLocale)
                             if (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED) {
                                 isReady = true
+                                it.setSpeechRate(currentRate)
                             }
                         }
                     } catch (e: Exception) {
@@ -29,11 +37,39 @@ class TtsHelper(context: Context) {
         }
     }
 
-    fun speak(text: String) {
+    fun setSpeedRate(rate: Float) {
+        currentRate = rate.coerceIn(0.5f, 2.0f)
+        try {
+            tts?.setSpeechRate(currentRate)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun setVoiceLocale(locale: Locale): Boolean {
+        currentLocale = locale
+        return try {
+            val res = tts?.setLanguage(locale)
+            res != TextToSpeech.LANG_MISSING_DATA && res != TextToSpeech.LANG_NOT_SUPPORTED
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun speak(text: String, rate: Float = currentRate) {
         try {
             if (isReady && tts != null) {
+                tts?.setSpeechRate(rate)
                 tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "vocab_utterance_${System.currentTimeMillis()}")
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun stop() {
+        try {
+            tts?.stop()
         } catch (e: Exception) {
             e.printStackTrace()
         }

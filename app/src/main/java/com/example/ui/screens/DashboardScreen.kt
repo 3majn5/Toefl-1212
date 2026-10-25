@@ -19,10 +19,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AssignmentTurnedIn
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CollectionsBookmark
+import androidx.compose.material.icons.filled.CompareArrows
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Sync
@@ -61,6 +68,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.LearningDirection
 import com.example.ui.theme.AccentGold
 import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.Navy800
@@ -78,11 +86,19 @@ fun DashboardScreen(
     onNavigateToAudit: () -> Unit,
     onNavigateToPractice: () -> Unit,
     onStartDailySession: () -> Unit,
+    onNavigateToToeflPractice: () -> Unit = {},
+    onNavigateToListeningLab: () -> Unit = {},
+    onNavigateToStudyPlanner: () -> Unit = {},
+    onNavigateToSentenceCoach: () -> Unit = {},
+    onNavigateToConfusables: () -> Unit = {},
+    onNavigateToBackupRestore: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val stats by viewModel.studyStats.collectAsState()
     val dailyGoal by viewModel.dailyGoal.collectAsState()
     val isInitializing by viewModel.isInitializing.collectAsState()
+    val studyPlan by viewModel.studyPlan.collectAsState()
+    val skillSummaries by viewModel.skillSummaries.collectAsState()
 
     var showGoalDialog by remember { mutableStateOf(false) }
 
@@ -97,13 +113,33 @@ fun DashboardScreen(
                             fontSize = 20.sp
                         )
                         Text(
-                            text = "1212 Words You Need to Know",
+                            text = "Intelligent Spaced Repetition Mastery",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = onNavigateToStudyPlanner,
+                        modifier = Modifier.testTag("action_planner_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = "Study Planner",
+                            tint = PrimaryBlue
+                        )
+                    }
+                    IconButton(
+                        onClick = onNavigateToBackupRestore,
+                        modifier = Modifier.testTag("action_backup_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Backup,
+                            contentDescription = "Backup and Export",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     IconButton(
                         onClick = onNavigateToAudit,
                         modifier = Modifier.testTag("action_audit_button")
@@ -144,7 +180,62 @@ fun DashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
-                // Header Banner: PDF Extraction Verification
+                // Exam Countdown & Streak Banner
+                studyPlan.targetExamTimestamp?.let {
+                    val days = studyPlan.daysUntilExam ?: 0
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = PrimaryBlue.copy(alpha = 0.08f)),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onNavigateToStudyPlanner() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .background(PrimaryBlue, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarToday,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = "$days Days Until TOEFL Exam",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = PrimaryBlue
+                                        )
+                                        Text(
+                                            text = "Daily Target: ${studyPlan.dailyNewWords} words (${studyPlan.dailyMinutes} mins) • ${studyPlan.streakDays}d streak",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = PrimaryBlue
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Official PDF Extraction Integrity Banner
                 item {
                     Card(
                         colors = CardDefaults.cardColors(
@@ -159,28 +250,29 @@ fun DashboardScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(48.dp)
+                                    .size(42.dp)
                                     .background(PrimaryBlue, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = "PDF Extraction Verified",
-                                    tint = Color.White
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(16.dp))
+                            Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Official PDF Extracted",
+                                    text = "Official 46-Page PDF Extracted",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
+                                    fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Text(
-                                    text = "All 46 pages processed (1,212/1,212 entries intact). Numbering and source page preserved.",
+                                    text = "All 1,212 numbered entries intact with 27 documented source anomalies.",
                                     fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                                 )
                             }
                             IconButton(onClick = onNavigateToAudit) {
@@ -194,7 +286,7 @@ fun DashboardScreen(
                     }
                 }
 
-                // Main Learning Workflow Card
+                // Main Hero: Today's FSRS Study Session
                 item {
                     Card(
                         colors = CardDefaults.cardColors(
@@ -211,13 +303,23 @@ fun DashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Psychology,
+                                            contentDescription = null,
+                                            tint = PrimaryBlue,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Today's FSRS Session",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 18.sp
+                                        )
+                                    }
+                                    val estMinutes = ((stats.dueCount * 0.7f) + (dailyGoal * 1.5f)).toInt().coerceAtLeast(5)
                                     Text(
-                                        text = "Today's Study Session",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp
-                                    )
-                                    Text(
-                                        text = "Due review + ${dailyGoal} new words + recall quiz",
+                                        text = "${stats.dueCount} due reviews + $dailyGoal new words (~$estMinutes mins)",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -238,16 +340,16 @@ fun DashboardScreen(
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 StatPill(
-                                    title = "Due Review",
+                                    title = "Due Reviews",
                                     count = stats.dueCount,
                                     color = if (stats.dueCount > 0) WarningOrange else SuccessGreen,
                                     modifier = Modifier.weight(1f)
                                 )
                                 StatPill(
-                                    title = "New to Learn",
+                                    title = "New Words",
                                     count = stats.newCount,
                                     color = PrimaryBlue,
                                     modifier = Modifier.weight(1f)
@@ -278,10 +380,80 @@ fun DashboardScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Start Lesson Session",
-                                    fontSize = 16.sp,
+                                    text = if (stats.dueCount > 0) "Review ${stats.dueCount} Due Words Now" else "Start Daily Lesson ($dailyGoal New Words)",
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )
+                            }
+                        }
+                    }
+                }
+
+                // 7 Practice Channels Skill Health Overview
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.School,
+                                        contentDescription = null,
+                                        tint = AccentGold,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "7-Skill Mastery Health",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp
+                                    )
+                                }
+                                Text(
+                                    text = "Practice Modes",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryBlue,
+                                    modifier = Modifier.clickable { onNavigateToPractice() }
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Compact rows for 7 channels
+                            skillSummaries.forEach { summary ->
+                                Column(modifier = Modifier.padding(vertical = 3.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(text = summary.direction.displayName, fontSize = 12.sp)
+                                        Text(
+                                            text = if (summary.attempts > 0) "${(summary.accuracy * 100).toInt()}% (${summary.successes}/${summary.attempts})" else "0%",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (summary.accuracy >= 0.75f) SuccessGreen else PrimaryBlue
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    LinearProgressIndicator(
+                                        progress = { summary.accuracy },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(5.dp)
+                                            .clip(RoundedCornerShape(3.dp)),
+                                        color = if (summary.accuracy >= 0.8f) SuccessGreen else if (summary.accuracy >= 0.5f) PrimaryBlue else AccentGold,
+                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -290,9 +462,7 @@ fun DashboardScreen(
                 // Overall Completion Progress
                 item {
                     Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         shape = RoundedCornerShape(20.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -350,16 +520,77 @@ fun DashboardScreen(
                     }
                 }
 
-                // Quick Navigation Cards
+                // Academic Labs & Advanced Practice Section
                 item {
                     Text(
-                        text = "Explore & Practice",
+                        text = "Academic Labs & Tools",
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp,
                         modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
                     )
                 }
 
+                // Row: TOEFL 2026 Lab & Listening Lab
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ActionCard(
+                            title = "TOEFL 2026 Lab",
+                            subtitle = "Cloze words, reading & discussion",
+                            icon = Icons.Default.AutoAwesome,
+                            color = PrimaryBlue,
+                            onClick = onNavigateToToeflPractice,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_toefl_lab")
+                        )
+
+                        ActionCard(
+                            title = "Listening & Pronounce",
+                            subtitle = "Audio quiz, dictation & speed",
+                            icon = Icons.Default.Hearing,
+                            color = AccentGold,
+                            onClick = onNavigateToListeningLab,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_listening_lab")
+                        )
+                    }
+                }
+
+                // Row: Confusable Words & Sentence Coach
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ActionCard(
+                            title = "Confusable Words",
+                            subtitle = "High-frequency TOEFL traps",
+                            icon = Icons.Default.CompareArrows,
+                            color = WarningOrange,
+                            onClick = onNavigateToConfusables,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_confusables")
+                        )
+
+                        ActionCard(
+                            title = "Sentence Coach",
+                            subtitle = "Writing quality & feedback",
+                            icon = Icons.Default.Edit,
+                            color = SuccessGreen,
+                            onClick = onNavigateToSentenceCoach,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_sentence_coach")
+                        )
+                    }
+                }
+
+                // Row: Browse & 7 Practice Modes
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -392,6 +623,37 @@ fun DashboardScreen(
                     }
                 }
 
+                // Row: Study Planner & Backup/Restore
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ActionCard(
+                            title = "Study Planner",
+                            subtitle = "Exam forecast & retention goal",
+                            icon = Icons.Default.CalendarToday,
+                            color = PrimaryBlue,
+                            onClick = onNavigateToStudyPlanner,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_study_planner")
+                        )
+
+                        ActionCard(
+                            title = "Backup & Export",
+                            subtitle = "JSON & CSV data portability",
+                            icon = Icons.Default.Backup,
+                            color = SuccessGreen,
+                            onClick = onNavigateToBackupRestore,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("card_backup_export")
+                        )
+                    }
+                }
+
+                // Difficult words & Source anomalies
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -399,7 +661,7 @@ fun DashboardScreen(
                     ) {
                         ActionCard(
                             title = "Difficult Words",
-                            subtitle = "${stats.difficultCount} flagged for review",
+                            subtitle = "${stats.difficultCount} flagged words",
                             icon = Icons.Default.Star,
                             color = WarningOrange,
                             onClick = {
@@ -512,7 +774,7 @@ private fun ActionCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(38.dp)
                     .background(color.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
@@ -520,14 +782,14 @@ private fun ActionCard(
                     imageVector = icon,
                     contentDescription = null,
                     tint = color,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = title,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 13.sp
             )
             Text(
                 text = subtitle,
