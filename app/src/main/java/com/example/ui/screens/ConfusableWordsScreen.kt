@@ -1,7 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,14 +28,14 @@ import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
@@ -46,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -53,7 +53,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontStyle
@@ -61,12 +60,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.ConfusablePair
+import com.example.data.model.LearningDirection
+import com.example.data.model.VocabEntry
 import com.example.ui.theme.AccentGold
 import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.PrimaryBlue
+import com.example.ui.theme.SecondaryIndigo
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.viewmodel.VocabViewModel
 import com.example.util.ConfusableWordsData
+
+private enum class ConfusableScope(val label: String) {
+    CURATED("Curated Traps (24)"),
+    ALL_1212("All 1,212 Words"),
+    BY_PAGE("By Page (1–46)"),
+    ANOMALIES("27 PDF Anomalies & Duplicates")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,8 +84,19 @@ fun ConfusableWordsScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val allEntries by viewModel.allEntries.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
-    val pairs = ConfusableWordsData.PAIRS
+    var selectedScope by remember { mutableStateOf(ConfusableScope.CURATED) }
+    var selectedPage by remember { mutableIntStateOf(1) }
+
+    val activePairs = remember(allEntries, selectedScope, selectedPage) {
+        when (selectedScope) {
+            ConfusableScope.CURATED -> ConfusableWordsData.PAIRS
+            ConfusableScope.ALL_1212 -> ConfusableWordsData.build1212ContrastPairs(allEntries)
+            ConfusableScope.BY_PAGE -> ConfusableWordsData.build1212ContrastPairs(allEntries, pageFilter = selectedPage)
+            ConfusableScope.ANOMALIES -> ConfusableWordsData.build1212ContrastPairs(allEntries, anomaliesOnly = true)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -84,12 +104,12 @@ fun ConfusableWordsScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Confusable Words Lab",
+                            text = "Confusable Words & 1,212 Contrast Lab",
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
                         Text(
-                            text = "Master high-frequency TOEFL traps",
+                            text = "Master TOEFL look-alikes, synonyms & all 1,212 contrasts",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -122,20 +142,75 @@ fun ConfusableWordsScreen(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("Study Pairs (${pairs.size})", fontWeight = FontWeight.SemiBold) },
+                    text = { Text("Study Pairs (${activePairs.size})", fontWeight = FontWeight.SemiBold) },
                     icon = { Icon(Icons.Default.CompareArrows, contentDescription = null) }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("Discrimination Quiz", fontWeight = FontWeight.SemiBold) },
+                    text = { Text("Discrimination Quiz (${activePairs.size})", fontWeight = FontWeight.SemiBold) },
                     icon = { Icon(Icons.Default.Quiz, contentDescription = null) }
                 )
             }
 
+            // Scope & Page Filter bar
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(ConfusableScope.entries) { scope ->
+                            FilterChip(
+                                selected = selectedScope == scope,
+                                onClick = { selectedScope = scope },
+                                label = {
+                                    Text(
+                                        text = scope.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (selectedScope == scope) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PrimaryBlue,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+
+                    if (selectedScope == ConfusableScope.BY_PAGE) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items((1..46).toList()) { page ->
+                                FilterChip(
+                                    selected = selectedPage == page,
+                                    onClick = { selectedPage = page },
+                                    label = { Text("Page $page", fontSize = 11.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SecondaryIndigo,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             when (selectedTab) {
-                0 -> ConfusableStudyList(pairs = pairs, onSpeak = { viewModel.speak(it) })
-                1 -> ConfusableQuiz(pairs = pairs, onSpeak = { viewModel.speak(it) })
+                0 -> ConfusableStudyList(pairs = activePairs, onSpeak = { viewModel.speak(it) })
+                1 -> ConfusableQuiz(
+                    pairs = activePairs,
+                    allEntries = allEntries,
+                    viewModel = viewModel
+                )
             }
         }
     }
@@ -147,7 +222,7 @@ private fun ConfusableStudyList(
     onSpeak: (String) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    val filteredPairs = remember(searchQuery) {
+    val filteredPairs = remember(searchQuery, pairs) {
         if (searchQuery.isBlank()) pairs
         else pairs.filter {
             it.wordA.contains(searchQuery, ignoreCase = true) ||
@@ -167,7 +242,7 @@ private fun ConfusableStudyList(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text("Search confusable pairs...") },
+                label = { Text("Search ${pairs.size} confusable & contrast pairs...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -206,7 +281,10 @@ private fun ConfusablePairCard(
                         fontWeight = FontWeight.Bold,
                         color = PrimaryBlue
                     )
-                    IconButton(onClick = { onSpeak(pair.wordA) }, modifier = Modifier.size(28.dp)) {
+                    IconButton(
+                        onClick = { onSpeak(pair.wordA.substringBefore(" (")) },
+                        modifier = Modifier.size(28.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                             contentDescription = "Speak ${pair.wordA}",
@@ -227,7 +305,10 @@ private fun ConfusablePairCard(
                         fontWeight = FontWeight.Bold,
                         color = AccentGold
                     )
-                    IconButton(onClick = { onSpeak(pair.wordB) }, modifier = Modifier.size(28.dp)) {
+                    IconButton(
+                        onClick = { onSpeak(pair.wordB.substringBefore(" (")) },
+                        modifier = Modifier.size(28.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                             contentDescription = "Speak ${pair.wordB}",
@@ -309,12 +390,13 @@ private fun ConfusablePairCard(
 @Composable
 private fun ConfusableQuiz(
     pairs: List<ConfusablePair>,
-    onSpeak: (String) -> Unit
+    allEntries: List<VocabEntry>,
+    viewModel: VocabViewModel
 ) {
-    var currentIndex by remember { mutableIntStateOf(0) }
-    var selectedOption by remember { mutableStateOf<String?>(null) }
-    var score by remember { mutableIntStateOf(0) }
-    var completedCount by remember { mutableIntStateOf(0) }
+    var currentIndex by remember(pairs) { mutableIntStateOf(0) }
+    var selectedOption by remember(pairs, currentIndex) { mutableStateOf<String?>(null) }
+    var score by remember(pairs) { mutableIntStateOf(0) }
+    var completedCount by remember(pairs) { mutableIntStateOf(0) }
 
     val currentPair = pairs.getOrNull(currentIndex)
 
@@ -449,6 +531,16 @@ private fun ConfusableQuiz(
                                 selectedOption = opt
                                 completedCount++
                                 if (isCorrect) score++
+                                val cleanHeadword = currentPair.correctWord.substringBefore(" (")
+                                allEntries.firstOrNull {
+                                    it.headword.equals(cleanHeadword, ignoreCase = true)
+                                }?.let { matchedEntry ->
+                                    viewModel.recordSkillPractice(
+                                        entry = matchedEntry,
+                                        direction = LearningDirection.SYNONYM,
+                                        isCorrect = isCorrect
+                                    )
+                                }
                             }
                     ) {
                         Row(

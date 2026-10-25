@@ -1,10 +1,6 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -25,9 +21,8 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -40,6 +35,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -49,12 +45,12 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontStyle
@@ -62,16 +58,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LearningDirection
+import com.example.data.model.StudyStatus
 import com.example.data.model.VocabEntry
 import com.example.data.model.WritingEvaluationResult
 import com.example.ui.theme.AccentGold
-import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.PrimaryBlue
+import com.example.ui.theme.SecondaryIndigo
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningOrange
 import com.example.ui.viewmodel.VocabViewModel
 import com.example.util.AcademicVocabularyEnricher
 import com.example.util.SentenceCoachAnalyzer
+
+private enum class CoachWordScope(val label: String) {
+    ALL_1212("All 1,212 Words"),
+    BY_PAGE("By Page (1–46)"),
+    UNMASTERED("Due / Unmastered"),
+    DIFFICULT("Difficult / Saved")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,13 +87,30 @@ fun SentenceCoachScreen(
     val entries by viewModel.allEntries.collectAsState()
     val selectedEntryFromVm by viewModel.selectedEntry.collectAsState()
 
-    // Default target word candidates
-    val candidateWords = remember(entries) {
-        if (entries.isNotEmpty()) {
-            val highYield = listOf("attribute", "comprise", "adhere", "collaborate", "accelerate", "distort", "precede", "infer")
-            val matches = entries.filter { it.headword.lowercase() in highYield }
-            if (matches.isNotEmpty()) matches else entries.take(10)
-        } else emptyList()
+    var selectedScope by remember { mutableStateOf(CoachWordScope.ALL_1212) }
+    var selectedPage by remember { mutableIntStateOf(1) }
+    var wordSearchQuery by remember { mutableStateOf("") }
+
+    val candidateWords = remember(entries, selectedScope, selectedPage, wordSearchQuery) {
+        if (entries.isEmpty()) emptyList()
+        else {
+            val base = when (selectedScope) {
+                CoachWordScope.ALL_1212 -> entries.sortedBy { it.entryNumber }
+                CoachWordScope.BY_PAGE -> entries.filter { it.sourcePage == selectedPage }.sortedBy { it.entryNumber }
+                CoachWordScope.UNMASTERED -> entries.filter { it.studyStatus != StudyStatus.MASTERED }.sortedBy { it.entryNumber }
+                CoachWordScope.DIFFICULT -> entries.filter { it.isDifficult || it.isBookmarked || it.hasAnomaly }.sortedBy { it.entryNumber }
+            }.ifEmpty { entries.sortedBy { it.entryNumber } }
+
+            if (wordSearchQuery.isBlank()) base
+            else {
+                val q = wordSearchQuery.trim().removePrefix("#")
+                base.filter {
+                    it.headword.contains(q, ignoreCase = true) ||
+                            it.entryNumber.toString() == q ||
+                            it.primaryMeaning.contains(q, ignoreCase = true)
+                }.ifEmpty { base }
+            }
+        }
     }
 
     var currentTargetEntry by remember(candidateWords, selectedEntryFromVm) {
@@ -110,12 +131,12 @@ fun SentenceCoachScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Sentence Writing Coach",
+                            text = "Sentence Writing Coach (1,212 Words)",
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
                         Text(
-                            text = "Authentic Academic Sentence Production",
+                            text = "Authentic Academic Sentence Production for #1–#1212",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -141,41 +162,100 @@ fun SentenceCoachScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(vertical = 16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(vertical = 14.dp)
         ) {
-            // Target Word Selector Row
+            // 1,212 Scope & Search Bar
             item {
-                Text(
-                    text = "Select Target Word to Practice:",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(candidateWords) { entry ->
-                        FilterChip(
-                            selected = currentTargetEntry?.entryNumber == entry.entryNumber,
-                            onClick = {
-                                currentTargetEntry = entry
-                                evaluationResult = null
-                                practiceRecorded = false
-                            },
-                            label = { Text(entry.headword, fontWeight = FontWeight.SemiBold) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = PrimaryBlue,
-                                selectedLabelColor = Color.White
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(CoachWordScope.entries) { scope ->
+                            FilterChip(
+                                selected = selectedScope == scope,
+                                onClick = { selectedScope = scope },
+                                label = {
+                                    Text(
+                                        text = scope.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (selectedScope == scope) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PrimaryBlue,
+                                    selectedLabelColor = Color.White
+                                )
                             )
-                        )
+                        }
+                    }
+
+                    if (selectedScope == CoachWordScope.BY_PAGE) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items((1..46).toList()) { page ->
+                                FilterChip(
+                                    selected = selectedPage == page,
+                                    onClick = { selectedPage = page },
+                                    label = { Text("Page $page", fontSize = 11.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SecondaryIndigo,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = wordSearchQuery,
+                        onValueChange = { wordSearchQuery = it },
+                        label = { Text("Jump to #1–#1212 or search headword...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Text(
+                        text = "Select Target Word (${candidateWords.size} available):",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(candidateWords.take(60), key = { it.entryNumber }) { entry ->
+                            FilterChip(
+                                selected = currentTargetEntry?.entryNumber == entry.entryNumber,
+                                onClick = {
+                                    currentTargetEntry = entry
+                                    evaluationResult = null
+                                    practiceRecorded = false
+                                },
+                                label = {
+                                    Text(
+                                        text = "#${entry.entryNumber} ${entry.headword}",
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PrimaryBlue,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
                     }
                 }
             }
 
-            // Word Guidance Card
+            // Word Guidance Card with Prev / Next across all 1,212 entries
             enrichedTarget?.let { entry ->
                 item {
                     Card(
@@ -192,12 +272,12 @@ fun SentenceCoachScreen(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = entry.headword,
-                                        fontSize = 22.sp,
+                                        text = "#${entry.entryNumber} ${entry.headword}",
+                                        fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = PrimaryBlue
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     IconButton(
                                         onClick = { viewModel.speak(entry.headword) },
                                         modifier = Modifier.size(28.dp)
@@ -210,30 +290,90 @@ fun SentenceCoachScreen(
                                         )
                                     }
                                 }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            if (candidateWords.isNotEmpty()) {
+                                                val idx = candidateWords.indexOfFirst { it.entryNumber == entry.entryNumber }
+                                                val prevIdx = if (idx > 0) idx - 1 else candidateWords.size - 1
+                                                currentTargetEntry = candidateWords[prevIdx]
+                                                evaluationResult = null
+                                                practiceRecorded = false
+                                            }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text("Prev", fontSize = 11.sp)
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            if (candidateWords.isNotEmpty()) {
+                                                val idx = candidateWords.indexOfFirst { it.entryNumber == entry.entryNumber }
+                                                val nextIdx = if (idx >= 0) (idx + 1) % candidateWords.size else 0
+                                                currentTargetEntry = candidateWords[nextIdx]
+                                                evaluationResult = null
+                                                practiceRecorded = false
+                                            }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text("Next", fontSize = 11.sp)
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Surface(
                                     color = PrimaryBlue.copy(alpha = 0.1f),
                                     shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        text = entry.registerFormality.ifBlank { "Academic" },
+                                        text = "Page ${entry.sourcePage} • ${entry.grammaticalLabels.joinToString(", ")}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = PrimaryBlue,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
+                                Surface(
+                                    color = SecondaryIndigo.copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = entry.registerFormality.ifBlank { "Academic" },
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = SecondaryIndigo,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
                             }
 
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             Text(
                                 text = entry.primaryMeaning.ifBlank { entry.definitions.firstOrNull() ?: "" },
-                                fontSize = 13.sp,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
 
+                            if (entry.collocations.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Collocations: ${entry.collocations.take(3).joinToString(" • ")}",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
                             if (entry.grammarPatterns.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         imageVector = Icons.Default.School,

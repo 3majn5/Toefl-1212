@@ -5,7 +5,10 @@ import com.example.data.model.StudyPlan
 import com.example.data.model.StudyStatus
 import com.example.data.model.UserVerificationStatus
 import com.example.data.model.VocabEntry
+import com.example.util.AcademicVocabularyEnricher
 import com.example.util.BackupRestoreManager
+import com.example.util.ConfusableWordsData
+import com.example.util.Toefl2026PracticeData
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -57,6 +60,63 @@ class DataIntegrityTest {
         assertEquals("All 1,212 entry numbers must be present without holes", 1212, numbers.size)
         assertEquals("All 46 source pages must be represented", 46, pages.size)
         assertEquals("Exactly 27 anomalies documented", 27, anomalyCount)
+    }
+
+    @Test
+    fun testAll1212LabCoverageAndEnrichment() {
+        val file = File("src/main/assets/toefl_1212_extracted.json")
+        val root = JSONObject(file.readText())
+        val entriesArray = root.getJSONArray("entries")
+
+        val allEntries = (0 until entriesArray.length()).map { i ->
+            val item = entriesArray.getJSONObject(i)
+            val defs = mutableListOf<String>()
+            val defsArr = item.optJSONArray("definitions")
+            if (defsArr != null) {
+                for (j in 0 until defsArr.length()) defs.add(defsArr.getString(j))
+            }
+            val labels = mutableListOf<String>()
+            val labelsArr = item.optJSONArray("grammaticalLabels")
+            if (labelsArr != null) {
+                for (j in 0 until labelsArr.length()) labels.add(labelsArr.getString(j))
+            }
+            VocabEntry(
+                entryNumber = item.getInt("entryNumber"),
+                sourcePage = item.getInt("sourcePage"),
+                headword = item.getString("headword"),
+                rawText = item.optString("rawText", ""),
+                definitions = defs,
+                primaryMeaning = item.optString("primaryMeaning", ""),
+                grammaticalLabels = labels,
+                exampleSentence = item.optString("exampleSentence", ""),
+                hasAnomaly = item.optBoolean("hasAnomaly", false),
+                anomalyNotes = item.optString("anomalyNotes", "")
+            )
+        }
+
+        assertEquals(1212, allEntries.size)
+
+        // Verify all 1,212 entries produce complete enrichments and lab exercises
+        for (entry in allEntries) {
+            val enriched = AcademicVocabularyEnricher.enrich(entry)
+            assertTrue("Collocations must not be empty for #${entry.entryNumber}", enriched.collocations.isNotEmpty())
+            assertTrue("Word family must not be empty for #${entry.entryNumber}", enriched.wordFamily.isNotEmpty())
+            assertTrue("Grammar patterns must not be empty for #${entry.entryNumber}", enriched.grammarPatterns.isNotEmpty())
+            assertTrue("Common mistakes/tips must not be blank for #${entry.entryNumber}", enriched.commonMistakes.isNotBlank())
+
+            val cloze = Toefl2026PracticeData.buildClozeForEntry(entry)
+            assertEquals(entry.headword.trim(), cloze.targetWord)
+            assertTrue(cloze.obscuredWord.contains("_"))
+            assertTrue(cloze.textWithBlanks.isNotBlank())
+
+            val reading = Toefl2026PracticeData.buildReadingQuestionForEntry(entry, allEntries)
+            assertEquals(4, reading.options.size)
+            assertTrue(reading.correctIndex in 0..3)
+            assertEquals(entry.primaryMeaning, reading.options[reading.correctIndex])
+        }
+
+        val contrastPairs = ConfusableWordsData.build1212ContrastPairs(allEntries)
+        assertEquals(1212, contrastPairs.size)
     }
 
     @Test

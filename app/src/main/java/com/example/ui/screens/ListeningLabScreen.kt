@@ -1,9 +1,7 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,25 +13,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Keyboard
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +39,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -58,16 +57,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LearningDirection
+import com.example.data.model.StudyStatus
 import com.example.data.model.VocabEntry
 import com.example.ui.theme.AccentGold
 import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.PrimaryBlue
+import com.example.ui.theme.SecondaryIndigo
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.viewmodel.VocabViewModel
+
+private enum class ListeningScope(val label: String) {
+    ALL_1212("All 1,212 Words"),
+    BY_PAGE("By PDF Page (1–46)"),
+    UNMASTERED("Due / Unmastered"),
+    DIFFICULT("Difficult / Saved"),
+    SHUFFLE_25("Quick 25 Shuffle")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,8 +90,24 @@ fun ListeningLabScreen(
     val ttsSpeed by viewModel.ttsSpeed.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
     var isUkVoice by remember { mutableStateOf(false) }
+    var selectedScope by remember { mutableStateOf(ListeningScope.ALL_1212) }
+    var selectedPage by remember { mutableIntStateOf(1) }
 
     val tabs = listOf("Audio Quiz", "Dictation Spelling", "Speed & Settings")
+
+    val activePool = remember(allEntries, selectedScope, selectedPage) {
+        if (allEntries.isEmpty()) emptyList()
+        else {
+            val filtered = when (selectedScope) {
+                ListeningScope.ALL_1212 -> allEntries.sortedBy { it.entryNumber }
+                ListeningScope.BY_PAGE -> allEntries.filter { it.sourcePage == selectedPage }.sortedBy { it.entryNumber }
+                ListeningScope.UNMASTERED -> allEntries.filter { it.studyStatus != StudyStatus.MASTERED }.sortedBy { it.entryNumber }
+                ListeningScope.DIFFICULT -> allEntries.filter { it.isDifficult || it.isBookmarked || it.hasAnomaly }.sortedBy { it.entryNumber }
+                ListeningScope.SHUFFLE_25 -> allEntries.shuffled().take(25)
+            }
+            filtered.ifEmpty { allEntries.sortedBy { it.entryNumber } }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -89,12 +115,12 @@ fun ListeningLabScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Listening & Pronunciation Lab",
+                            text = "Listening & Pronunciation Lab (1,212 Words)",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Speech audio recognition and phonetics",
+                            text = "Full 1,212-word speech recognition, dictation & phonetics",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -139,9 +165,68 @@ fun ListeningLabScreen(
                 }
             }
 
+            if (selectedTab == 0 || selectedTab == 1) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(ListeningScope.entries) { scope ->
+                                FilterChip(
+                                    selected = selectedScope == scope,
+                                    onClick = { selectedScope = scope },
+                                    label = {
+                                        Text(
+                                            text = scope.label,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (selectedScope == scope) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = PrimaryBlue,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+                            }
+                        }
+
+                        if (selectedScope == ListeningScope.BY_PAGE) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items((1..46).toList()) { page ->
+                                    FilterChip(
+                                        selected = selectedPage == page,
+                                        onClick = { selectedPage = page },
+                                        label = { Text("Page $page", fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = SecondaryIndigo,
+                                            selectedLabelColor = Color.White
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             when (selectedTab) {
-                0 -> AudioQuizView(entries = allEntries, viewModel = viewModel)
-                1 -> DictationSpellingView(entries = allEntries, viewModel = viewModel)
+                0 -> AudioQuizView(
+                    currentPool = activePool,
+                    allEntries = allEntries,
+                    viewModel = viewModel
+                )
+                1 -> DictationSpellingView(
+                    currentPool = activePool,
+                    viewModel = viewModel
+                )
                 2 -> AudioSettingsView(
                     ttsSpeed = ttsSpeed,
                     isUkVoice = isUkVoice,
@@ -161,28 +246,27 @@ fun ListeningLabScreen(
 
 @Composable
 private fun AudioQuizView(
-    entries: List<VocabEntry>,
+    currentPool: List<VocabEntry>,
+    allEntries: List<VocabEntry>,
     viewModel: VocabViewModel
 ) {
-    if (entries.isEmpty()) return
+    if (currentPool.isEmpty()) return
 
-    var currentPool by remember(entries) {
-        mutableStateOf(entries.shuffled().take(10))
-    }
-    var cardIndex by remember { mutableIntStateOf(0) }
-    val current = currentPool.getOrNull(cardIndex) ?: return
+    var cardIndex by remember(currentPool) { mutableIntStateOf(0) }
+    val safeIndex = cardIndex.coerceIn(0, (currentPool.size - 1).coerceAtLeast(0))
+    val current = currentPool.getOrNull(safeIndex) ?: return
 
-    val distractors = remember(current) {
-        entries.filter { it.entryNumber != current.entryNumber }.shuffled().take(3)
+    val distractors = remember(current, allEntries) {
+        allEntries.filter { it.entryNumber != current.entryNumber }.shuffled().take(3)
     }
     val options = remember(current, distractors) {
         (distractors.map { it.primaryMeaning } + current.primaryMeaning).shuffled()
     }
 
-    var selectedOpt by remember(cardIndex) { mutableStateOf<String?>(null) }
-    var submitted by remember(cardIndex) { mutableStateOf(false) }
+    var selectedOpt by remember(safeIndex, current.entryNumber) { mutableStateOf<String?>(null) }
+    var submitted by remember(safeIndex, current.entryNumber) { mutableStateOf(false) }
 
-    LaunchedEffect(cardIndex) {
+    LaunchedEffect(safeIndex, current.entryNumber) {
         viewModel.speak(current.headword)
     }
 
@@ -191,6 +275,37 @@ private fun AudioQuizView(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize()
     ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Entry #${current.entryNumber} • Page ${current.sourcePage} (${safeIndex + 1}/${currentPool.size})",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryBlue
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(
+                        onClick = { cardIndex = if (safeIndex > 0) safeIndex - 1 else currentPool.size - 1 },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Text("Prev", fontSize = 11.sp)
+                    }
+                    OutlinedButton(
+                        onClick = { cardIndex = (safeIndex + 1) % currentPool.size },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Text("Next", fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -202,33 +317,53 @@ private fun AudioQuizView(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Listen & Identify (${cardIndex + 1}/${currentPool.size})",
+                        text = "Listen & Identify (${safeIndex + 1}/${currentPool.size})",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    IconButton(
-                        onClick = { viewModel.speak(current.headword) },
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(PrimaryBlue.copy(alpha = 0.15f))
-                            .testTag("audio_quiz_play_button")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                            contentDescription = "Replay audio",
-                            tint = PrimaryBlue,
-                            modifier = Modifier.size(36.dp)
-                        )
+                        IconButton(
+                            onClick = { viewModel.speak(current.headword) },
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(PrimaryBlue.copy(alpha = 0.15f))
+                                .testTag("audio_quiz_play_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = "Replay word audio",
+                                tint = PrimaryBlue,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+
+                        if (current.exampleSentence.isNotBlank()) {
+                            OutlinedButton(
+                                onClick = { viewModel.speak(current.exampleSentence) },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.RecordVoiceOver,
+                                    contentDescription = "Hear sentence in context",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Hear in Sentence", fontSize = 12.sp)
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Tap to replay audio",
+                        text = "Tap speaker to replay headword (${current.grammaticalLabels.joinToString(", ")})",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -236,13 +371,26 @@ private fun AudioQuizView(
                     if (submitted) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = current.headword,
+                            text = "#${current.entryNumber} ${current.headword}",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = PrimaryBlue
                         )
                         current.phonetic?.let {
-                            Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (current.exampleSentence.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "\"${current.exampleSentence}\"",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontStyle = FontStyle.Italic,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }
@@ -266,14 +414,23 @@ private fun AudioQuizView(
                     if (!submitted) {
                         selectedOpt = opt
                         submitted = true
+                        viewModel.recordSkillPractice(
+                            entry = current,
+                            direction = LearningDirection.LISTENING,
+                            isCorrect = isTarget
+                        )
                     }
                 },
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = bg),
-                modifier = Modifier.fillMaxWidth().testTag("audio_opt_$optIdx")
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("audio_opt_$optIdx")
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -285,9 +442,17 @@ private fun AudioQuizView(
                     )
                     if (submitted) {
                         if (isTarget) {
-                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen)
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = SuccessGreen
+                            )
                         } else if (isSelected) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = ErrorRed)
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = null,
+                                tint = ErrorRed
+                            )
                         }
                     }
                 }
@@ -298,10 +463,12 @@ private fun AudioQuizView(
             item {
                 Button(
                     onClick = {
-                        cardIndex = (cardIndex + 1) % currentPool.size
+                        cardIndex = (safeIndex + 1) % currentPool.size
                     },
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
                 ) {
                     Text("Next Audio Word", fontWeight = FontWeight.Bold)
                 }
@@ -312,22 +479,20 @@ private fun AudioQuizView(
 
 @Composable
 private fun DictationSpellingView(
-    entries: List<VocabEntry>,
+    currentPool: List<VocabEntry>,
     viewModel: VocabViewModel
 ) {
-    if (entries.isEmpty()) return
+    if (currentPool.isEmpty()) return
 
-    var currentPool by remember(entries) {
-        mutableStateOf(entries.shuffled().take(10))
-    }
-    var cardIndex by remember { mutableIntStateOf(0) }
-    val current = currentPool.getOrNull(cardIndex) ?: return
+    var cardIndex by remember(currentPool) { mutableIntStateOf(0) }
+    val safeIndex = cardIndex.coerceIn(0, (currentPool.size - 1).coerceAtLeast(0))
+    val current = currentPool.getOrNull(safeIndex) ?: return
 
-    var inputSpelling by remember(cardIndex) { mutableStateOf("") }
-    var submitted by remember(cardIndex) { mutableStateOf(false) }
+    var inputSpelling by remember(safeIndex, current.entryNumber) { mutableStateOf("") }
+    var submitted by remember(safeIndex, current.entryNumber) { mutableStateOf(false) }
     val isCorrect = inputSpelling.trim().equals(current.headword.trim(), ignoreCase = true)
 
-    LaunchedEffect(cardIndex) {
+    LaunchedEffect(safeIndex, current.entryNumber) {
         viewModel.speak(current.headword)
     }
 
@@ -336,6 +501,37 @@ private fun DictationSpellingView(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize()
     ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Dictation #${current.entryNumber} • Page ${current.sourcePage} (${safeIndex + 1}/${currentPool.size})",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryBlue
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(
+                        onClick = { cardIndex = if (safeIndex > 0) safeIndex - 1 else currentPool.size - 1 },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Text("Prev", fontSize = 11.sp)
+                    }
+                    OutlinedButton(
+                        onClick = { cardIndex = (safeIndex + 1) % currentPool.size },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Text("Next", fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -347,7 +543,7 @@ private fun DictationSpellingView(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Audio Dictation Spelling (${cardIndex + 1}/${currentPool.size})",
+                        text = "Audio Dictation Spelling (${safeIndex + 1}/${currentPool.size})",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -373,7 +569,7 @@ private fun DictationSpellingView(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Listen carefully and spell the word below",
+                        text = "Listen carefully and spell the ${current.headword.length}-letter word (starts with '${current.headword.first().uppercaseChar()}')",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -396,17 +592,29 @@ private fun DictationSpellingView(
                 label = { Text("Spell the spoken word") },
                 singleLine = true,
                 enabled = !submitted,
-                modifier = Modifier.fillMaxWidth().testTag("dictation_input")
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("dictation_input")
             )
         }
 
         item {
             Button(
-                onClick = { submitted = true },
+                onClick = {
+                    submitted = true
+                    viewModel.recordSkillPractice(
+                        entry = current,
+                        direction = LearningDirection.SPELLING,
+                        isCorrect = inputSpelling.trim().equals(current.headword.trim(), ignoreCase = true)
+                    )
+                },
                 enabled = inputSpelling.isNotBlank() && !submitted,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("dictation_submit_button")
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("dictation_submit_button")
             ) {
                 Text("Check Spelling", fontWeight = FontWeight.Bold)
             }
@@ -439,15 +647,25 @@ private fun DictationSpellingView(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(text = "Phonetic: ${current.phonetic}", style = MaterialTheme.typography.bodySmall)
                         }
+                        if (current.exampleSentence.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Example: \"${current.exampleSentence}\"",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontStyle = FontStyle.Italic
+                            )
+                        }
                     }
                 }
             }
 
             item {
                 Button(
-                    onClick = { cardIndex = (cardIndex + 1) % currentPool.size },
+                    onClick = { cardIndex = (safeIndex + 1) % currentPool.size },
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
                 ) {
                     Text("Next Dictation Word", fontWeight = FontWeight.Bold)
                 }
@@ -532,7 +750,10 @@ private fun AudioSettingsView(
                 onClick = onTestAudio,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("test_audio_button")
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("test_audio_button")
             ) {
                 Icon(imageVector = Icons.Default.Hearing, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -547,10 +768,15 @@ private fun AudioSettingsView(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(24.dp))
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = PrimaryBlue,
+                        modifier = Modifier.size(24.dp)
+                    )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Audio runs 100% offline using your Android device's installed Text-to-Speech synthesis engine. For highest naturalness, ensure Google Speech Services offline voice data is downloaded in your device system settings.",
+                        text = "Audio runs 100% offline using your Android device's installed Text-to-Speech synthesis engine across all 1,212 headwords and academic context sentences.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
