@@ -14,6 +14,7 @@ import com.example.data.model.UserVerificationStatus
 import com.example.data.model.VocabEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -28,17 +29,27 @@ class VocabRepository(private val context: Context) {
     private var cachedPagesAudit: List<PageAudit> = emptyList()
 
     suspend fun initializeDatabaseIfNeeded() = withContext(Dispatchers.IO) {
-        val count = dao.getCount()
-        if (count < 1212) {
-            val (entries, pageAudits) = loadFromAssets()
-            cachedPagesAudit = pageAudits
-            val entityList = entries.map { VocabEntity.fromDomain(it) }
-            for (batch in entityList.chunked(50)) {
-                dao.insertAll(batch)
+        try {
+            val count = runCatching { dao.getCount() }.getOrDefault(0)
+            if (count < 1212) {
+                val (entries, pageAudits) = loadFromAssets()
+                cachedPagesAudit = pageAudits
+                val entityList = entries.map { VocabEntity.fromDomain(it) }
+                for (batch in entityList.chunked(50)) {
+                    runCatching { dao.insertAll(batch) }
+                }
+            } else if (cachedPagesAudit.isEmpty()) {
+                val (_, pageAudits) = loadFromAssets()
+                cachedPagesAudit = pageAudits
             }
-        } else if (cachedPagesAudit.isEmpty()) {
-            val (_, pageAudits) = loadFromAssets()
-            cachedPagesAudit = pageAudits
+        } catch (e: Exception) {
+            e.printStackTrace()
+            if (cachedPagesAudit.isEmpty()) {
+                runCatching {
+                    val (_, pageAudits) = loadFromAssets()
+                    cachedPagesAudit = pageAudits
+                }
+            }
         }
     }
 
@@ -140,34 +151,62 @@ class VocabRepository(private val context: Context) {
         return Pair(entries, pageAudits)
     }
 
-    fun getAllEntries(): Flow<List<VocabEntry>> = dao.getAll().map { list -> list.map { it.toDomain() } }
+    fun getAllEntries(): Flow<List<VocabEntry>> = dao.getAll()
+        .map { list -> list.map { it.toDomain() } }
+        .catch { e ->
+            e.printStackTrace()
+            val (entries, pageAudits) = runCatching { loadFromAssets() }.getOrDefault(Pair(emptyList(), emptyList()))
+            if (pageAudits.isNotEmpty()) cachedPagesAudit = pageAudits
+            emit(entries)
+        }
 
     suspend fun getAllEntriesDirect(): List<VocabEntry> = withContext(Dispatchers.IO) {
-        dao.getAllDirect().map { it.toDomain() }
+        runCatching {
+            dao.getAllDirect().map { it.toDomain() }
+        }.getOrElse {
+            val (entries, _) = runCatching { loadFromAssets() }.getOrDefault(Pair(emptyList(), emptyList()))
+            entries
+        }
     }
 
-    fun getEntryByNumber(num: Int): Flow<VocabEntry?> = dao.getByNumber(num).map { it?.toDomain() }
+    fun getEntryByNumber(num: Int): Flow<VocabEntry?> = dao.getByNumber(num)
+        .map { it?.toDomain() }
+        .catch { emit(null) }
 
-    suspend fun getEntryByNumberDirect(num: Int): VocabEntry? = dao.getByNumberDirect(num)?.toDomain()
+    suspend fun getEntryByNumberDirect(num: Int): VocabEntry? = runCatching {
+        dao.getByNumberDirect(num)?.toDomain()
+    }.getOrNull()
 
-    fun getEntriesByPage(page: Int): Flow<List<VocabEntry>> = dao.getByPage(page).map { list -> list.map { it.toDomain() } }
+    fun getEntriesByPage(page: Int): Flow<List<VocabEntry>> = dao.getByPage(page)
+        .map { list -> list.map { it.toDomain() } }
+        .catch { emit(emptyList()) }
 
-    fun search(query: String): Flow<List<VocabEntry>> = dao.search(query).map { list -> list.map { it.toDomain() } }
+    fun search(query: String): Flow<List<VocabEntry>> = dao.search(query)
+        .map { list -> list.map { it.toDomain() } }
+        .catch { emit(emptyList()) }
 
-    fun getDifficultEntries(): Flow<List<VocabEntry>> = dao.getDifficultEntries().map { list -> list.map { it.toDomain() } }
+    fun getDifficultEntries(): Flow<List<VocabEntry>> = dao.getDifficultEntries()
+        .map { list -> list.map { it.toDomain() } }
+        .catch { emit(emptyList()) }
 
-    fun getBookmarkedEntries(): Flow<List<VocabEntry>> = dao.getBookmarkedEntries().map { list -> list.map { it.toDomain() } }
+    fun getBookmarkedEntries(): Flow<List<VocabEntry>> = dao.getBookmarkedEntries()
+        .map { list -> list.map { it.toDomain() } }
+        .catch { emit(emptyList()) }
 
-    fun getAnomalyEntries(): Flow<List<VocabEntry>> = dao.getAnomalyEntries().map { list -> list.map { it.toDomain() } }
+    fun getAnomalyEntries(): Flow<List<VocabEntry>> = dao.getAnomalyEntries()
+        .map { list -> list.map { it.toDomain() } }
+        .catch { emit(emptyList()) }
 
-    fun getFrequentlyForgotten(): Flow<List<VocabEntry>> = dao.getFrequentlyForgottenEntries().map { list -> list.map { it.toDomain() } }
+    fun getFrequentlyForgotten(): Flow<List<VocabEntry>> = dao.getFrequentlyForgottenEntries()
+        .map { list -> list.map { it.toDomain() } }
+        .catch { emit(emptyList()) }
 
     suspend fun getDueEntries(currentTime: Long): List<VocabEntry> = withContext(Dispatchers.IO) {
-        dao.getDueEntriesDirect(currentTime).map { it.toDomain() }
+        runCatching { dao.getDueEntriesDirect(currentTime).map { it.toDomain() } }.getOrDefault(emptyList())
     }
 
     suspend fun getNewEntries(limit: Int): List<VocabEntry> = withContext(Dispatchers.IO) {
-        dao.getNewEntriesDirect(limit).map { it.toDomain() }
+        runCatching { dao.getNewEntriesDirect(limit).map { it.toDomain() } }.getOrDefault(emptyList())
     }
 
     fun getPagesAudit(): List<PageAudit> {
