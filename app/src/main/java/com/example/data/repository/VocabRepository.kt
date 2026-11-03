@@ -19,6 +19,9 @@ import com.example.data.model.StudyStats
 import com.example.data.model.StudyStatus
 import com.example.data.model.UserVerificationStatus
 import com.example.data.model.VocabEntry
+import com.example.data.model.ThemeMode
+import com.example.data.model.TranslationLanguage
+import com.example.data.model.WeeklyProgress
 import com.example.data.model.WordCollection
 import com.example.data.model.WorkloadForecast
 import com.example.util.AcademicVocabularyEnricher
@@ -39,7 +42,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-private const val CONTENT_VERSION = 2
+private const val CONTENT_VERSION = 3
 
 class VocabRepository(private val context: Context) {
     private val db = AppDatabase.getInstance(context)
@@ -87,6 +90,7 @@ class VocabRepository(private val context: Context) {
                     examples = entry.dictionaryExamples,
                     synonyms = entry.dictionarySynonyms
                 )
+                dao.updateAwlSublist(entry.entryNumber, entry.awlSublist)
                 dao.updateLinguisticProfile(
                     entryNumber = entry.entryNumber,
                     collocations = entry.collocations,
@@ -171,13 +175,34 @@ class VocabRepository(private val context: Context) {
                 dictionaryDefinitions = eObj.optJSONArray("dictionaryDefinitions").toStringList(),
                 dictionarySynonyms = eObj.optJSONArray("dictionarySynonyms").toStringList(),
                 phonetic = phoneticVal,
-                collection = collection.key
+                collection = collection.key,
+                collocations = eObj.optJSONArray("collocations").toStringList(),
+                wordFamily = eObj.optJSONArray("wordFamily").toStringList(),
+                antonyms = eObj.optJSONArray("antonyms").toStringList(),
+                awlSublist = eObj.optInt("awlSublist", 0)
             )
 
             // Enrich with academic collocations, word families, and common traps
             entries.add(AcademicVocabularyEnricher.enrich(rawEntry))
         }
         return Pair(entries, pageAudits)
+    }
+
+    // headword (lowercase) -> language code -> gloss
+    private val translations: Map<String, Map<String, String>> by lazy { loadTranslations() }
+
+    private fun loadTranslations(): Map<String, Map<String, String>> = runCatching {
+        val text = context.assets.open("translations.json").use { BufferedReader(InputStreamReader(it)).readText() }
+        val obj = JSONObject(text).getJSONObject("translations")
+        obj.keys().asSequence().associateWith { key ->
+            val langs = obj.getJSONObject(key)
+            langs.keys().asSequence().associateWith { langs.getString(it) }
+        }
+    }.getOrDefault(emptyMap())
+
+    fun translationFor(entry: VocabEntry, language: TranslationLanguage): String? {
+        if (language == TranslationLanguage.NONE) return null
+        return translations[entry.headword.trim().lowercase()]?.get(language.code)?.takeIf { it.isNotBlank() }
     }
 
     fun getAllEntries(): Flow<List<VocabEntry>> = dao.getAll()
@@ -344,6 +369,18 @@ class VocabRepository(private val context: Context) {
             LearningDirection.PRODUCTION -> dao.incrementSkillStats(entry.entryNumber, prodAtt = 1, prodSucc = succ)
             LearningDirection.LISTENING -> dao.incrementSkillStats(entry.entryNumber, listAtt = 1, listSucc = succ)
         }
+        // Timestamped log so progress charts can show accuracy per skill over time
+        dao.insertReviewLog(
+            ReviewLogEntity(
+                entryNumber = entry.entryNumber,
+                rating = if (isCorrect) FsrsRating.GOOD.value else FsrsRating.AGAIN.value,
+                reviewTimestamp = System.currentTimeMillis(),
+                scheduledDays = 0,
+                stability = entry.fsrsStability,
+                difficulty = entry.fsrsDifficulty,
+                channel = direction.name
+            )
+        )
     }
 
     /**
@@ -429,6 +466,50 @@ class VocabRepository(private val context: Context) {
             )
         }
     }
+
+    /**
+     * Weekly progress for the charts: words first studied per week and accuracy per skill per week,
+     * oldest week first. Weeks are rolling 7-day windows ending now.
+     */
+    suspend fun getWeeklyProgress(weeks: Int = 8): WeeklyProgress = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val week = 7L * 24 * 60 * 60 * 1000
+        val start = now - weeks * week
+        fun weekIndex(ts: Long): Int = ((ts - start) / week).toInt().coerceIn(0, weeks - 1)
+
+        val learned = IntArray(weeks)
+        runCatching { dao.getFirstReviewTimes() }.getOrDefault(emptyList())
+            .filter { it.firstTimestamp >= start }
+            .forEach { learned[weekIndex(it.firstTimestamp)]++ }
+
+        val logs = runCatching { dao.getReviewLogsSince(start) }.getOrDefault(emptyList())
+        val accuracy = LearningDirection.values().associateWith { dir ->
+            val attempts = IntArray(weeks)
+            val successes = IntArray(weeks)
+            logs.filter { it.channel == dir.name }.forEach {
+                val i = weekIndex(it.reviewTimestamp)
+                attempts[i]++
+                if (it.rating >= FsrsRating.HARD.value) successes[i]++
+            }
+            (0 until weeks).map { i -> if (attempts[i] > 0) successes[i].toFloat() / attempts[i] else null }
+        }
+
+        val sdf = SimpleDateFormat("MMM d", Locale.US)
+        val labels = (0 until weeks).map { i -> sdf.format(Date(start + i * week)) }
+        WeeklyProgress(weekLabels = labels, wordsLearned = learned.toList(), skillAccuracy = accuracy)
+    }
+
+    fun getThemeMode(): ThemeMode =
+        runCatching { ThemeMode.valueOf(prefs.getString("theme_mode", null) ?: "") }.getOrDefault(ThemeMode.SYSTEM)
+
+    fun saveThemeMode(mode: ThemeMode) = prefs.edit().putString("theme_mode", mode.name).apply()
+
+    fun getTranslationLanguage(): TranslationLanguage =
+        runCatching { TranslationLanguage.valueOf(prefs.getString("translation_language", null) ?: "") }
+            .getOrDefault(TranslationLanguage.NONE)
+
+    fun saveTranslationLanguage(language: TranslationLanguage) =
+        prefs.edit().putString("translation_language", language.name).apply()
 
     /**
      * Study Plan persistence using SharedPreferences.

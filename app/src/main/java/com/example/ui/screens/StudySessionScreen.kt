@@ -10,6 +10,13 @@ import androidx.compose.runtime.key
 import com.example.ui.components.AnimatedEntrance
 import com.example.ui.components.AnimatedProgressBar
 import com.example.ui.components.answerFeedback
+import com.example.ui.components.TranslationLine
+import com.example.data.model.WritingEvaluationResult
+import com.example.util.SpellingChecker
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Animatable
@@ -180,7 +187,8 @@ fun StudySessionScreen(
                         onSpeak = { viewModel.speak(it) },
                         onAnswer = { isCorrect, q ->
                             viewModel.recordQuizAnswer(isCorrect, q)
-                        }
+                        },
+                        onEvaluateProduction = { sentence, q -> viewModel.evaluateProduction(sentence, q) }
                     )
                 }
                 is SessionPhase.MistakeReview -> {
@@ -453,6 +461,7 @@ private fun FsrsFlashcardView(
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold
                     )
+                    TranslationLine(entry)
 
                     // Dictionary Synonyms
                     if (entry.dictionarySynonyms.isNotEmpty()) {
@@ -799,6 +808,7 @@ private fun IntroCardView(
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold
                     )
+                    TranslationLine(entry)
 
                     if (entry.dictionarySynonyms.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(14.dp))
@@ -913,9 +923,12 @@ private fun IntroCardView(
 private fun QuizView(
     phase: SessionPhase.Quiz,
     onSpeak: (String) -> Unit,
-    onAnswer: (Boolean, QuizQuestion) -> Unit
+    onAnswer: (Boolean, QuizQuestion) -> Unit,
+    onEvaluateProduction: (String, QuizQuestion) -> WritingEvaluationResult? = { _, _ -> null }
 ) {
     val question = phase.questions.getOrNull(phase.currentIndex) ?: return
+    var spellingResult by remember(phase.currentIndex) { mutableStateOf<SpellingChecker.Result?>(null) }
+    var writingResult by remember(phase.currentIndex) { mutableStateOf<WritingEvaluationResult?>(null) }
     var selectedOption by remember(phase.currentIndex) { mutableStateOf<String?>(null) }
     var spellingInput by remember(phase.currentIndex) { mutableStateOf("") }
     var productionInput by remember(phase.currentIndex) { mutableStateOf("") }
@@ -1046,8 +1059,10 @@ private fun QuizView(
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = {
+                            val result = SpellingChecker.check(spellingInput, question.correctAnswer)
+                            spellingResult = result
                             hasAnswered = true
-                            isCorrectAnswer = spellingInput.trim().equals(question.correctAnswer.trim(), ignoreCase = true)
+                            isCorrectAnswer = result.isAccepted
                         },
                         enabled = spellingInput.isNotBlank(),
                         shape = RoundedCornerShape(12.dp),
@@ -1081,8 +1096,12 @@ private fun QuizView(
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = {
+                            val evaluation = onEvaluateProduction(productionInput, question)
+                            writingResult = evaluation
                             hasAnswered = true
-                            isCorrectAnswer = productionInput.lowercase().contains(question.correctAnswer.lowercase())
+                            // Strong sentences count: the word (or a family form) used well enough to score 3+/5
+                            isCorrectAnswer = evaluation?.let { it.isTargetWordPresent && it.estimatedAcademicScore >= 3 }
+                                ?: productionInput.lowercase().contains(question.correctAnswer.lowercase())
                         },
                         enabled = productionInput.isNotBlank(),
                         shape = RoundedCornerShape(12.dp),
@@ -1198,6 +1217,42 @@ private fun QuizView(
                         }
 
                         Spacer(modifier = Modifier.height(6.dp))
+
+                        spellingResult?.let { result ->
+                            Text(result.feedback, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            if (result.verdict != SpellingChecker.Verdict.EXACT) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = buildAnnotatedString {
+                                        append("Correct spelling: ")
+                                        result.highlightedAnswer.forEach { (segment, wrong) ->
+                                            if (wrong) {
+                                                withStyle(SpanStyle(color = ErrorRed, fontWeight = FontWeight.ExtraBold, textDecoration = TextDecoration.Underline)) { append(segment) }
+                                            } else {
+                                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(segment) }
+                                            }
+                                        }
+                                    },
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+
+                        writingResult?.let { eval ->
+                            Text(
+                                text = "Writing score: " + "★".repeat(eval.estimatedAcademicScore) + "☆".repeat(5 - eval.estimatedAcademicScore),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = AccentGold
+                            )
+                            eval.strengths.take(2).forEach {
+                                Text("✓ $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                            eval.suggestions.take(3).forEach {
+                                Text("→ $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
 
                         Text(
                             text = question.explanation,

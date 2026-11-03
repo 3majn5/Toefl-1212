@@ -15,7 +15,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.example.data.model.ThemeMode
+import androidx.compose.runtime.CompositionLocalProvider
+import com.example.ui.components.LocalTranslator
+import com.example.ui.components.RewardOverlay
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,7 +44,15 @@ class MainActivity : ComponentActivity() {
             e.printStackTrace()
         }
         setContent {
-            MyApplicationTheme {
+            val themeMode by viewModel.themeMode.collectAsState()
+            val reward by viewModel.rewardEvent.collectAsState()
+            val translationLanguage by viewModel.translationLanguage.collectAsState()
+            val darkTheme = when (themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+            MyApplicationTheme(darkTheme = darkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -68,7 +83,14 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else {
-                        AppNavigation(viewModel = viewModel)
+                        CompositionLocalProvider(
+                            LocalTranslator provides { entry -> viewModel.translationFor(entry, translationLanguage) }
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                AppNavigation(viewModel = viewModel)
+                                RewardOverlay(event = reward, onConsumed = viewModel::consumeReward)
+                            }
+                        }
                     }
                 }
             }

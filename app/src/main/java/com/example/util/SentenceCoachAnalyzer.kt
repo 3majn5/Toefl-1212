@@ -5,48 +5,128 @@ import com.example.data.model.WritingEvaluationResult
 
 object SentenceCoachAnalyzer {
 
+    private val INFORMAL = mapOf(
+        "gonna" to "going to", "wanna" to "want to", "kids" to "children", "stuff" to "material / items",
+        "things" to "factors / aspects", "a lot of" to "a considerable amount of / many",
+        "lots of" to "numerous", "really" to "considerably", "pretty" to "fairly", "get" to "obtain / become",
+        "big" to "substantial", "ok" to "acceptable", "okay" to "acceptable", "huge" to "substantial"
+    )
+    private val CONNECTORS = listOf(
+        "because", "although", "however", "therefore", "whereas", "while", "which", "that", "since",
+        "consequently", "moreover", "furthermore", "despite", "unless", "thus", "as a result"
+    )
+    private val CONTRACTION = Regex("\\b\\w+'(t|re|ve|ll|d|s|m)\\b", RegexOption.IGNORE_CASE)
+
+    /** Inflected and derived forms that count as using the target word. */
+    private fun acceptedForms(entry: VocabEntry): Set<String> {
+        val base = entry.answerForm.lowercase()
+        val forms = mutableSetOf(base)
+        if (!base.contains(' ')) {
+            val stem = base.removeSuffix("e")
+            forms += listOf("${base}s", "${base}es", "${base}d", "${base}ed", "${stem}ed", "${stem}ing", "${base}ing", "${base}ly")
+            if (base.endsWith("y")) forms += listOf("${base.dropLast(1)}ies", "${base.dropLast(1)}ied")
+        }
+        entry.wordFamily.forEach { forms += it.substringBefore(" (").trim().lowercase() }
+        return forms.filter { it.length >= 2 }.toSet()
+    }
+
+    private fun wordSimilarity(a: String, b: String): Float {
+        val wa = a.lowercase().split(Regex("\\W+")).filter { it.isNotBlank() }.toSet()
+        val wb = b.lowercase().split(Regex("\\W+")).filter { it.isNotBlank() }.toSet()
+        if (wa.isEmpty() || wb.isEmpty()) return 0f
+        return wa.intersect(wb).size.toFloat() / wa.union(wb).size
+    }
+
     fun evaluate(sentence: String, entry: VocabEntry): WritingEvaluationResult {
         val trimmed = sentence.trim()
         val lower = trimmed.lowercase()
         val targetLower = entry.answerForm.lowercase()
+        val tokens = lower.split(Regex("[^a-z'-]+")).filter { it.isNotBlank() }
 
-        // Check if headword or root lemma is present
-        val rootLemma = targetLower.removeSuffix("e").removeSuffix("ed").removeSuffix("ing").removeSuffix("s")
-        val isPresent = lower.contains(targetLower) || (rootLemma.length >= 4 && lower.contains(rootLemma))
+        val forms = acceptedForms(entry)
+        val formUsed = forms.firstOrNull { form ->
+            Regex("(?<![a-z])${Regex.escape(form)}(?![a-z])").containsMatchIn(lower)
+        }
+        val isPresent = formUsed != null
 
         val strengths = mutableListOf<String>()
         val suggestions = mutableListOf<String>()
         var prepCheck: String? = null
-        var score = 3
+        var score = 2
 
+        // 1. Target word
         if (isPresent) {
-            strengths.add("Target vocabulary '${entry.headword}' is integrated into the sentence.")
             score += 1
+            strengths.add(
+                if (formUsed == targetLower) "Uses the target word '${entry.answerForm}'."
+                else "Uses '$formUsed', a valid form of '${entry.answerForm}'."
+            )
         } else {
-            suggestions.add("Ensure the target word '${entry.headword}' is explicitly included.")
+            suggestions.add("Ensure the target word '${entry.answerForm}' is included (or a form such as ${forms.filter { it != targetLower }.take(2).joinToString(" / ").ifBlank { "its plural or past tense" }}).")
             score -= 1
         }
 
-        // Punctuation and Capitalization Check
-        if (trimmed.isNotEmpty() && trimmed.first().isUpperCase()) {
-            strengths.add("Proper initial capitalization.")
+        // 2. Mechanics
+        val capitalized = trimmed.isNotEmpty() && trimmed.first().isUpperCase()
+        val punctuated = trimmed.endsWith(".") || trimmed.endsWith("!") || trimmed.endsWith("?")
+        if (capitalized && punctuated) {
+            strengths.add("Correct capitalization and end punctuation.")
+            score += 1
         } else {
-            suggestions.add("Begin the academic sentence with a capital letter.")
+            if (!capitalized) suggestions.add("Start the sentence with a capital letter.")
+            if (!punctuated) suggestions.add("End the sentence with a period.")
         }
 
-        if (trimmed.endsWith(".") || trimmed.endsWith("!") || trimmed.endsWith("?")) {
-            strengths.add("Appropriate terminal punctuation.")
-        } else {
-            suggestions.add("Conclude the sentence with standard terminal punctuation (period).")
+        // 3. Length and structure
+        when {
+            tokens.size < 6 -> suggestions.add("This looks like a fragment. Add a subject, a verb, and some context (aim for 10+ words).")
+            tokens.size in 10..35 -> { strengths.add("Good academic sentence length (${tokens.size} words)."); score += 1 }
+            tokens.size > 40 -> suggestions.add("At ${tokens.size} words the sentence may be a run-on. Consider splitting it in two.")
+            else -> suggestions.add("Add a little more context to show the word's meaning clearly.")
         }
 
-        // Length and Complexity
-        val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
-        if (words.size >= 8) {
-            strengths.add("Substantive academic sentence length (${words.size} words).")
-            if (words.size >= 12) score += 1
-        } else {
-            suggestions.add("Expand the sentence context to demonstrate academic usage (aim for at least 8-10 words).")
+        // 4. Complexity: linking words and natural collocations
+        val connector = CONNECTORS.firstOrNull { Regex("\\b${Regex.escape(it)}\\b").containsMatchIn(lower) }
+        val collocationUsed = entry.collocations.firstOrNull { coll ->
+            val words = coll.lowercase().split(" ").filter { it.length > 2 && it !in forms }
+            words.isNotEmpty() && words.all { Regex("\\b${Regex.escape(it)}\\b").containsMatchIn(lower) }
+        }
+        if (collocationUsed != null) {
+            strengths.add("Natural collocation: '$collocationUsed'.")
+            score += 1
+        } else if (connector != null) {
+            strengths.add("Links ideas with '$connector', which adds academic complexity.")
+            score += 1
+        } else if (entry.collocations.isNotEmpty()) {
+            suggestions.add("Try a common collocation, e.g. '${entry.collocations.first()}'.")
+        }
+
+        // 5. Register
+        val informal = INFORMAL.keys.filter { Regex("\\b${Regex.escape(it)}\\b").containsMatchIn(lower) }
+        if (informal.isNotEmpty()) {
+            suggestions.add("Informal wording: " + informal.take(3).joinToString { "'$it' → '${INFORMAL[it]}'" } + ".")
+            score -= 1
+        }
+        if (CONTRACTION.containsMatchIn(trimmed) && !lower.contains("'s ")) {
+            suggestions.add("Avoid contractions in academic writing (write 'do not' instead of 'don't').")
+        }
+
+        // 6. Part of speech: a pure verb right after an article is usually a misuse ("the analyze")
+        val isPureVerb = entry.grammaticalLabels.any { it.startsWith("v") } &&
+            entry.wordFamily.none { it.substringBefore(" (").equals(entry.answerForm, ignoreCase = true) }
+        if (isPureVerb && Regex("\\b(the|a|an)\\s+${Regex.escape(targetLower)}\\b").containsMatchIn(lower)) {
+            suggestions.add("'${entry.answerForm}' is a verb here; after 'the/a' use its noun form" +
+                (entry.wordFamily.firstOrNull { it.contains("(n.)") }?.let { " ('${it.substringBefore(" (")}')" } ?: "") + ".")
+            score -= 1
+        }
+
+        // 7. Repetition and copying
+        val repeated = tokens.groupingBy { it }.eachCount().filter { it.value >= 3 && it.key.length > 3 }.keys
+        if (repeated.isNotEmpty()) suggestions.add("Vary your wording; '${repeated.first()}' is repeated several times.")
+        val examples = (listOf(entry.exampleSentence) + entry.dictionaryExamples).filter { it.isNotBlank() }
+        if (examples.any { wordSimilarity(it, trimmed) >= 0.75f }) {
+            suggestions.add("This is very close to the model sentence. Write your own example to really learn the word.")
+            score -= 1
         }
 
         // Collocation & Preposition Verification
@@ -104,7 +184,7 @@ object SentenceCoachAnalyzer {
         }
 
         return WritingEvaluationResult(
-            targetWord = entry.headword,
+            targetWord = entry.answerForm,
             submittedSentence = trimmed,
             isTargetWordPresent = isPresent,
             strengths = strengths,

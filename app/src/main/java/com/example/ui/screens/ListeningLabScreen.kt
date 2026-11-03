@@ -69,6 +69,7 @@ import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.SecondaryIndigo
 import com.example.ui.theme.SuccessGreen
+import com.example.util.SpellingChecker
 import com.example.ui.viewmodel.VocabViewModel
 
 private enum class ListeningScope(val label: String) {
@@ -490,7 +491,7 @@ private fun DictationSpellingView(
 
     var inputSpelling by remember(safeIndex, current.entryNumber) { mutableStateOf("") }
     var submitted by remember(safeIndex, current.entryNumber) { mutableStateOf(false) }
-    val isCorrect = inputSpelling.trim().equals(current.answerForm, ignoreCase = true)
+    val isCorrect = SpellingChecker.check(inputSpelling, current.answerForm).isAccepted
 
     LaunchedEffect(safeIndex, current.entryNumber) {
         viewModel.speak(current.answerForm)
@@ -605,7 +606,7 @@ private fun DictationSpellingView(
                     viewModel.recordSkillPractice(
                         entry = current,
                         direction = LearningDirection.SPELLING,
-                        isCorrect = inputSpelling.trim().equals(current.answerForm, ignoreCase = true)
+                        isCorrect = SpellingChecker.check(inputSpelling, current.answerForm).isAccepted
                     )
                 },
                 enabled = inputSpelling.isNotBlank() && !submitted,

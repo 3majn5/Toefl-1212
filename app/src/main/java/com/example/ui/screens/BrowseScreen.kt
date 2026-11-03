@@ -58,9 +58,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.VocabEntry
 import com.example.ui.components.AnomalyBadge
+import com.example.data.model.CollectionScope
 import com.example.ui.components.CollectionSwitcher
 import com.example.ui.components.StatusBadge
 import com.example.ui.components.bouncyClickable
+import com.example.ui.components.TranslationLine
 import com.example.ui.theme.AwlColor
 import com.example.ui.theme.ToeflColor
 import com.example.ui.components.TtsButton
@@ -85,6 +87,7 @@ fun BrowseScreen(
     val currentFilter by viewModel.filter.collectAsState()
     val selectedPage by viewModel.selectedPage.collectAsState()
     val currentSort by viewModel.sort.collectAsState()
+    val selectedSublist by viewModel.selectedSublist.collectAsState()
 
     val collectionScope by viewModel.collectionScope.collectAsState()
     val collectionCounts by viewModel.collectionCounts.collectAsState()
@@ -135,6 +138,13 @@ fun BrowseScreen(
                                 text = { Text("Alphabetical (A - Z)") },
                                 onClick = {
                                     viewModel.setSort(VocabSort.ALPHABETICAL)
+                                    sortMenuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("AWL Sublist (most frequent first)") },
+                                onClick = {
+                                    viewModel.setSort(VocabSort.BY_SUBLIST)
                                     sortMenuExpanded = false
                                 }
                             )
@@ -223,6 +233,15 @@ fun BrowseScreen(
                         label = { Text("By Page ($selectedPage/${pageNumbers.size})") }
                     )
                 }
+                if (collectionScope != CollectionScope.TOEFL) {
+                    item {
+                        FilterChip(
+                            selected = currentFilter == VocabFilter.BY_SUBLIST,
+                            onClick = { viewModel.setFilter(VocabFilter.BY_SUBLIST) },
+                            label = { Text("AWL Sublist $selectedSublist") }
+                        )
+                    }
+                }
                 item {
                     FilterChip(
                         selected = currentFilter == VocabFilter.DUE_REVIEW,
@@ -281,6 +300,26 @@ fun BrowseScreen(
                             label = { Text("Page $p") },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = PrimaryBlue,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
+            }
+
+            if (currentFilter == VocabFilter.BY_SUBLIST && collectionScope != CollectionScope.TOEFL) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items((1..10).toList()) { n ->
+                        FilterChip(
+                            selected = selectedSublist == n,
+                            onClick = { viewModel.setSelectedSublist(n) },
+                            label = { Text(if (n == 1) "Sublist 1 · most frequent" else "Sublist $n") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = AwlColor,
                                 selectedLabelColor = Color.White
                             )
                         )
@@ -361,7 +400,7 @@ fun VocabItemCard(
                     }
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Page ${entry.sourcePage}",
+                        text = if (entry.awlSublist > 0) "Sublist ${entry.awlSublist}" else "Page ${entry.sourcePage}",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -426,6 +465,7 @@ fun VocabItemCard(
                 lineHeight = 18.sp,
                 modifier = Modifier.padding(top = 2.dp)
             )
+            TranslationLine(entry)
 
             // Dictionary Synonyms preview badge if available
             if (entry.dictionarySynonyms.isNotEmpty()) {

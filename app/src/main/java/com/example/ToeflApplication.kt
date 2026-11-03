@@ -2,6 +2,7 @@ package com.example
 
 import android.app.Application
 import android.util.Log
+import com.example.util.ReminderScheduler
 
 class ToeflApplication : Application() {
     override fun onCreate() {
@@ -11,5 +12,6 @@ class ToeflApplication : Application() {
             Log.e("TOEFL_1212", "Fatal error on thread ${thread.name}: ${throwable.message}", throwable)
             defaultHandler?.uncaughtException(thread, throwable)
         }
+        ReminderScheduler.createChannel(this)
     }
 }

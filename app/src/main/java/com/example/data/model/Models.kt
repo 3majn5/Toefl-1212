@@ -133,7 +133,10 @@ data class VocabEntry(
     val antonyms: List<String> = emptyList(),
 
     // Source collection ("TOEFL" or "AWL")
-    val collection: String = WordCollection.TOEFL.key
+    val collection: String = WordCollection.TOEFL.key,
+
+    // AWL frequency sublist 1 (most frequent) to 10; 0 for words outside the AWL
+    val awlSublist: Int = 0
 ) {
     val isAwl: Boolean
         get() = collection == WordCollection.AWL.key
@@ -181,6 +184,20 @@ data class VocabEntry(
 }
 
 const val AWL_NUMBER_OFFSET = 2000
+
+enum class ThemeMode(val displayName: String) {
+    SYSTEM("System"),
+    LIGHT("Light"),
+    DARK("Dark")
+}
+
+/** Native-language glosses shown next to English definitions. */
+enum class TranslationLanguage(val code: String, val displayName: String, val nativeName: String) {
+    NONE("", "Off", "English only"),
+    PERSIAN("fa", "Persian", "فارسی"),
+    HINDI("hi", "Hindi", "हिन्दी"),
+    CHINESE("zh", "Chinese", "中文")
+}
 
 data class SkillMasterySummary(
     val direction: LearningDirection,
@@ -325,4 +342,11 @@ data class ToeflBackupData(
     val reviewsCount: Int,
     val entries: List<VocabEntry>,
     val studyPlan: StudyPlan? = null
+)
+
+/** Chart data: one value per week, oldest first. Accuracy is null for weeks without attempts. */
+data class WeeklyProgress(
+    val weekLabels: List<String>,
+    val wordsLearned: List<Int>,
+    val skillAccuracy: Map<LearningDirection, List<Float?>>
 )

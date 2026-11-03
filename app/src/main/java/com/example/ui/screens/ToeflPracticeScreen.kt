@@ -71,6 +71,7 @@ import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.SecondaryIndigo
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningOrange
+import com.example.util.SpellingChecker
 import com.example.ui.viewmodel.VocabViewModel
 import com.example.util.SentenceCoachAnalyzer
 import com.example.util.Toefl2026PracticeData
@@ -266,7 +267,7 @@ private fun CompleteTheWordsTab(
     var userInput by remember(safeIndex, current.id) { mutableStateOf("") }
     var showHint by remember(safeIndex, current.id) { mutableStateOf(false) }
     var submitted by remember(safeIndex, current.id) { mutableStateOf(false) }
-    val isCorrect = userInput.trim().equals(current.targetWord, ignoreCase = true)
+    val isCorrect = SpellingChecker.check(userInput, current.targetWord).isAccepted
 
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -447,7 +448,7 @@ private fun CompleteTheWordsTab(
                             viewModel.recordSkillPractice(
                                 entry = entry,
                                 direction = LearningDirection.CONTEXT,
-                                isCorrect = userInput.trim().equals(current.targetWord, ignoreCase = true)
+                                isCorrect = SpellingChecker.check(userInput, current.targetWord).isAccepted
                             )
                         }
                     },

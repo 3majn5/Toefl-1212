@@ -71,7 +71,8 @@ data class VocabEntity(
     val antonyms: List<String> = emptyList(),
 
     // Source collection ("TOEFL" or "AWL")
-    val collection: String = "TOEFL"
+    val collection: String = "TOEFL",
+    val awlSublist: Int = 0
 ) {
     fun toDomain(): VocabEntry {
         return VocabEntry(
@@ -130,7 +131,8 @@ data class VocabEntity(
             commonMistakes = commonMistakes,
             registerFormality = registerFormality,
             antonyms = antonyms,
-            collection = collection
+            collection = collection,
+            awlSublist = awlSublist
         )
     }
 
@@ -192,7 +194,8 @@ data class VocabEntity(
                 commonMistakes = entry.commonMistakes,
                 registerFormality = entry.registerFormality,
                 antonyms = entry.antonyms,
-                collection = entry.collection
+                collection = entry.collection,
+                awlSublist = entry.awlSublist
             )
         }
     }

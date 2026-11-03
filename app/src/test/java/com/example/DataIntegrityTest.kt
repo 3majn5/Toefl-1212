@@ -90,7 +90,9 @@ class DataIntegrityTest {
                 grammaticalLabels = labels,
                 exampleSentence = item.optString("exampleSentence", ""),
                 hasAnomaly = item.optBoolean("hasAnomaly", false),
-                anomalyNotes = item.optString("anomalyNotes", "")
+                anomalyNotes = item.optString("anomalyNotes", ""),
+                collocations = item.getJSONArray("collocations").let { arr -> (0 until arr.length()).map { arr.getString(it) } },
+                wordFamily = item.getJSONArray("wordFamily").let { arr -> (0 until arr.length()).map { arr.getString(it) } }
             )
         }
 
@@ -100,7 +102,10 @@ class DataIntegrityTest {
         for (entry in allEntries) {
             val enriched = AcademicVocabularyEnricher.enrich(entry)
             assertTrue("Collocations must not be empty for #${entry.entryNumber}", enriched.collocations.isNotEmpty())
-            assertTrue("Word family must not be empty for #${entry.entryNumber}", enriched.wordFamily.isNotEmpty())
+            assertTrue(
+                "Word family for #${entry.entryNumber} must contain only real forms",
+                enriched.wordFamily.none { it.contains("root)") || it.startsWith("Synonym:") || it.contains("core component") }
+            )
             assertTrue("Grammar patterns must not be empty for #${entry.entryNumber}", enriched.grammarPatterns.isNotEmpty())
             assertTrue("Common mistakes/tips must not be blank for #${entry.entryNumber}", enriched.commonMistakes.isNotBlank())
 
@@ -220,6 +225,27 @@ class DataIntegrityTest {
                     )
                     assertTrue("No example for '$headword' contains the word itself", entry.usableExamples.isNotEmpty())
                 }
+            }
+        }
+    }
+
+    @Test
+    fun testAwlSublistsAndTranslations() {
+        val awl = JSONObject(File("src/main/assets/awl_570.json").readText()).getJSONArray("entries")
+        val counts = IntArray(11)
+        for (i in 0 until awl.length()) counts[awl.getJSONObject(i).getInt("awlSublist")]++
+        for (n in 1..9) assertEquals("Sublist $n has 60 headwords", 60, counts[n])
+        assertEquals("Sublist 10 has 30 headwords", 30, counts[10])
+
+        val translations = JSONObject(File("src/main/assets/translations.json").readText()).getJSONObject("translations")
+        for (file in listOf("toefl_1212_extracted.json", "awl_570.json")) {
+            val entries = JSONObject(File("src/main/assets/$file").readText()).getJSONArray("entries")
+            for (i in 0 until entries.length()) {
+                val item = entries.getJSONObject(i)
+                val key = item.getString("headword").trim().lowercase()
+                val t = translations.getJSONObject(key)
+                for (lang in listOf("fa", "hi", "zh")) assertTrue("$key needs a $lang translation", t.getString(lang).isNotBlank())
+                assertTrue("$key needs real collocations", item.getJSONArray("collocations").length() >= 2)
             }
         }
     }

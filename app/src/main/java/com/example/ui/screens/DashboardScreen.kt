@@ -69,7 +69,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.graphics.graphicsLayer
 import com.example.data.model.CollectionScope
+import com.example.data.model.ThemeMode
+import com.example.ui.theme.SunnyAmber
+import com.example.util.GamificationState
 import com.example.data.model.LearningDirection
 import com.example.ui.components.AnimatedCounter
 import com.example.ui.components.AnimatedEntrance
@@ -106,6 +115,8 @@ fun DashboardScreen(
     onNavigateToSentenceCoach: () -> Unit = {},
     onNavigateToConfusables: () -> Unit = {},
     onNavigateToBackupRestore: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToProgress: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val stats by viewModel.studyStats.collectAsState()
@@ -117,6 +128,14 @@ fun DashboardScreen(
     val collectionCounts by viewModel.collectionCounts.collectAsState()
     val scopedEntries by viewModel.allEntries.collectAsState()
     val anomalyCount = scopedEntries.count { it.hasAnomaly }
+    val game by viewModel.gameState.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
+    val isDark = when (themeMode) {
+        ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.refreshGameState() }
 
     var showGoalDialog by remember { mutableStateOf(false) }
 
@@ -138,6 +157,18 @@ fun DashboardScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.setThemeMode(if (isDark) ThemeMode.LIGHT else ThemeMode.DARK) }) {
+                        androidx.compose.animation.Crossfade(targetState = isDark, label = "themeIcon") { dark ->
+                            Icon(
+                                imageVector = if (dark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                contentDescription = if (dark) "Switch to light mode" else "Switch to dark mode",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    IconButton(onClick = onNavigateToSettings, modifier = Modifier.testTag("action_settings_button")) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
+                    }
                     IconButton(
                         onClick = onNavigateToStudyPlanner,
                         modifier = Modifier.testTag("action_planner_button")
@@ -146,16 +177,6 @@ fun DashboardScreen(
                             imageVector = Icons.Default.CalendarToday,
                             contentDescription = "Study Planner",
                             tint = PrimaryBlue
-                        )
-                    }
-                    IconButton(
-                        onClick = onNavigateToBackupRestore,
-                        modifier = Modifier.testTag("action_backup_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Backup,
-                            contentDescription = "Backup and Export",
-                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     IconButton(
@@ -208,6 +229,13 @@ fun DashboardScreen(
                     }
                 }
 
+                // Streak, level and daily goal
+                item {
+                    AnimatedEntrance(index = 1) {
+                        StreakCard(game = game, onClick = onNavigateToProgress)
+                    }
+                }
+
                 // Exam Countdown & Streak Banner
                 studyPlan.targetExamTimestamp?.let {
                     val days = studyPlan.daysUntilExam ?: 0
@@ -247,7 +275,7 @@ fun DashboardScreen(
                                             color = PrimaryBlue
                                         )
                                         Text(
-                                            text = "Daily Target: ${studyPlan.dailyNewWords} words (${studyPlan.dailyMinutes} mins) • ${studyPlan.streakDays}d streak",
+                                            text = "Daily Target: ${studyPlan.dailyNewWords} words (${studyPlan.dailyMinutes} mins) • ${game.streakDays}d streak",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -705,6 +733,31 @@ fun DashboardScreen(
                   }
                 }
 
+                // Progress & Settings
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ActionCard(
+                            title = "Progress & Badges",
+                            subtitle = "Weekly charts, XP & streaks",
+                            icon = Icons.Default.Insights,
+                            color = FreshMint,
+                            onClick = onNavigateToProgress,
+                            modifier = Modifier.weight(1f).testTag("card_progress")
+                        )
+                        ActionCard(
+                            title = "Settings",
+                            subtitle = "Theme, translation, reminders",
+                            icon = Icons.Default.Settings,
+                            color = PrimaryBlue,
+                            onClick = onNavigateToSettings,
+                            modifier = Modifier.weight(1f).testTag("card_settings")
+                        )
+                    }
+                }
+
                 // Difficult words & Source anomalies
                 item {
                   AnimatedEntrance(index = 10) {
@@ -849,6 +902,55 @@ private fun ActionCard(
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun StreakCard(game: GamificationState, onClick: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.fillMaxWidth().bouncyClickable(onClick)
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Flame gently pulses while today's study is still pending
+            val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "flame")
+            val flameScale by transition.animateFloat(
+                initialValue = 1f,
+                targetValue = if (game.studiedToday) 1f else 1.15f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.tween(700),
+                    androidx.compose.animation.core.RepeatMode.Reverse
+                ),
+                label = "flameScale"
+            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("🔥", fontSize = 28.sp, modifier = Modifier.graphicsLayer { scaleX = flameScale; scaleY = flameScale })
+                Text("${game.streakDays} day${if (game.streakDays == 1) "" else "s"}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Level ${game.level}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("${game.totalXp} XP", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                AnimatedProgressBar(progress = game.dailyProgress, color = if (game.dailyProgress >= 1f) FreshMint else SunnyAmber, height = 8)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    if (game.dailyProgress >= 1f) "Daily goal reached ✅" else "Today: ${game.todayXp} / ${game.dailyGoalXp} XP",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("🏅", fontSize = 22.sp)
+                Text("${game.earnedBadges.size}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
         }
     }
 }

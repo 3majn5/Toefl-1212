@@ -5,6 +5,9 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import com.example.ui.components.TranslationLine
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -90,7 +93,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun WordDetailScreen(
     entry: VocabEntry,
@@ -206,12 +209,14 @@ fun WordDetailScreen(
 
                         if (entry.grammaticalLabels.isNotEmpty()) {
                             Text(
-                                text = "Part of speech: ${entry.grammaticalLabels.joinToString()}",
+                                text = "Part of speech: ${entry.grammaticalLabels.joinToString()}" +
+                                    if (entry.awlSublist > 0) " • AWL Sublist ${entry.awlSublist} of 10" else "",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 2.dp)
                             )
                         }
+                        TranslationLine(entry)
 
                         if (enrichedEntry.registerFormality.isNotBlank()) {
                             Spacer(modifier = Modifier.height(6.dp))
@@ -516,21 +521,59 @@ fun WordDetailScreen(
                                 )
                             }
                             Spacer(modifier = Modifier.height(10.dp))
-                            Row(
+                            FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 enrichedEntry.wordFamily.forEach { form ->
                                     Surface(
                                         color = MaterialTheme.colorScheme.surfaceVariant,
                                         shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.clickable { viewModel.speak(form) }
+                                        modifier = Modifier.clickable { viewModel.speak(form.substringBefore(" (")) }
                                     ) {
                                         Text(
                                             text = form,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Antonyms
+            if (enrichedEntry.antonyms.isNotEmpty()) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text(text = "⇄  Antonyms (opposites)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Spacer(modifier = Modifier.height(10.dp))
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                enrichedEntry.antonyms.forEach { antonym ->
+                                    Surface(
+                                        color = ErrorRed.copy(alpha = 0.10f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.clickable { viewModel.speak(antonym) }
+                                    ) {
+                                        Text(
+                                            text = antonym,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                         )
                                     }

@@ -20,6 +20,8 @@ import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.ListeningLabScreen
 import com.example.ui.screens.PageAuditScreen
 import com.example.ui.screens.PracticeModesScreen
+import com.example.ui.screens.ProgressScreen
+import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SentenceCoachScreen
 import com.example.ui.screens.StudyPlannerScreen
 import com.example.ui.screens.StudySessionScreen
@@ -40,6 +42,8 @@ object Destinations {
     const val SENTENCE_COACH = "sentence_coach"
     const val CONFUSABLE_WORDS = "confusable_words"
     const val BACKUP_RESTORE = "backup_restore"
+    const val SETTINGS = "settings"
+    const val PROGRESS = "progress"
 }
 
 @Composable
@@ -86,7 +90,9 @@ fun AppNavigation(
                 onNavigateToStudyPlanner = { navController.navigate(Destinations.STUDY_PLANNER) },
                 onNavigateToSentenceCoach = { navController.navigate(Destinations.SENTENCE_COACH) },
                 onNavigateToConfusables = { navController.navigate(Destinations.CONFUSABLE_WORDS) },
-                onNavigateToBackupRestore = { navController.navigate(Destinations.BACKUP_RESTORE) }
+                onNavigateToBackupRestore = { navController.navigate(Destinations.BACKUP_RESTORE) },
+                onNavigateToSettings = { navController.navigate(Destinations.SETTINGS) },
+                onNavigateToProgress = { navController.navigate(Destinations.PROGRESS) }
             )
         }
 
@@ -183,6 +189,14 @@ fun AppNavigation(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
+        }
+
+        composable(Destinations.SETTINGS) {
+            SettingsScreen(viewModel = viewModel, onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Destinations.PROGRESS) {
+            ProgressScreen(viewModel = viewModel, onNavigateBack = { navController.popBackStack() })
         }
 
         composable(Destinations.BACKUP_RESTORE) {
