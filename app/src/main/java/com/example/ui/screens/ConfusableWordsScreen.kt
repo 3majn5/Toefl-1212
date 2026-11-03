@@ -72,8 +72,8 @@ import com.example.util.ConfusableWordsData
 
 private enum class ConfusableScope(val label: String) {
     CURATED("Curated Traps (24)"),
-    ALL_1212("All 1,212 Words"),
-    BY_PAGE("By Page (1–46)"),
+    ALL_1212("All Words"),
+    BY_PAGE("By Page"),
     ANOMALIES("27 PDF Anomalies & Duplicates")
 }
 
@@ -104,12 +104,12 @@ fun ConfusableWordsScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Confusable Words & 1,212 Contrast Lab",
+                            text = "Confusable Words & Contrast Lab",
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
                         Text(
-                            text = "Master TOEFL look-alikes, synonyms & all 1,212 contrasts",
+                            text = "Master look-alikes, synonyms & word contrasts",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -188,7 +188,7 @@ fun ConfusableWordsScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            items((1..46).toList()) { page ->
+                            items(viewModel.pagesAudit.map { it.page }) { page ->
                                 FilterChip(
                                     selected = selectedPage == page,
                                     onClick = { selectedPage = page },

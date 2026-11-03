@@ -61,6 +61,43 @@ interface VocabDao {
     @Query("SELECT COUNT(*) FROM vocab_entries")
     suspend fun getCount(): Int
 
+    @Query("SELECT COUNT(*) FROM vocab_entries WHERE collection = :collection")
+    suspend fun getCountForCollection(collection: String): Int
+
+    @Query("SELECT * FROM vocab_entries WHERE studyStatus = 'NEW' AND collection IN (:collections) ORDER BY awlSublist ASC, entryNumber ASC LIMIT :limit")
+    suspend fun getNewEntriesInCollections(collections: List<String>, limit: Int): List<VocabEntity>
+
+    @Query("UPDATE vocab_entries SET awlSublist = :sublist WHERE entryNumber = :entryNumber")
+    suspend fun updateAwlSublist(entryNumber: Int, sublist: Int)
+
+    @Query("SELECT * FROM review_logs WHERE reviewTimestamp >= :since ORDER BY reviewTimestamp ASC")
+    suspend fun getReviewLogsSince(since: Long): List<ReviewLogEntity>
+
+    @Query("SELECT entryNumber, MIN(reviewTimestamp) AS firstTimestamp FROM review_logs GROUP BY entryNumber")
+    suspend fun getFirstReviewTimes(): List<FirstReviewTime>
+
+    @Query("""
+        UPDATE vocab_entries
+        SET headword = :headword,
+            rawText = :rawText,
+            definitions = :definitions,
+            primaryMeaning = :primaryMeaning,
+            exampleSentence = :exampleSentence,
+            dictionaryExamples = :examples,
+            dictionarySynonyms = :synonyms
+        WHERE entryNumber = :entryNumber
+    """)
+    suspend fun refreshSourceContent(
+        entryNumber: Int,
+        headword: String,
+        rawText: String,
+        definitions: List<String>,
+        primaryMeaning: String,
+        exampleSentence: String,
+        examples: List<String>,
+        synonyms: List<String>
+    )
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(entries: List<VocabEntity>)
 
@@ -196,3 +233,6 @@ interface VocabDao {
     @Query("DELETE FROM review_logs")
     suspend fun deleteAllReviewLogs()
 }
+
+/** Projection: when each word was first studied, for "words learned per week". */
+data class FirstReviewTime(val entryNumber: Int, val firstTimestamp: Long)

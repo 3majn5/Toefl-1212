@@ -69,11 +69,12 @@ import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.SecondaryIndigo
 import com.example.ui.theme.SuccessGreen
+import com.example.util.SpellingChecker
 import com.example.ui.viewmodel.VocabViewModel
 
 private enum class ListeningScope(val label: String) {
-    ALL_1212("All 1,212 Words"),
-    BY_PAGE("By PDF Page (1–46)"),
+    ALL_1212("All Words"),
+    BY_PAGE("By PDF Page"),
     UNMASTERED("Due / Unmastered"),
     DIFFICULT("Difficult / Saved"),
     SHUFFLE_25("Quick 25 Shuffle")
@@ -115,12 +116,12 @@ fun ListeningLabScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Listening & Pronunciation Lab (1,212 Words)",
+                            text = "Listening & Pronunciation Lab",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Full 1,212-word speech recognition, dictation & phonetics",
+                            text = "Speech recognition, dictation & phonetics for every word",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -200,7 +201,7 @@ fun ListeningLabScreen(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                items((1..46).toList()) { page ->
+                                items(viewModel.pagesAudit.map { it.page }) { page ->
                                     FilterChip(
                                         selected = selectedPage == page,
                                         onClick = { selectedPage = page },
@@ -236,7 +237,7 @@ fun ListeningLabScreen(
                         viewModel.setTtsVoice(it)
                     },
                     onTestAudio = {
-                        viewModel.speak("Welcome to the TOEFL 1212 listening and pronunciation laboratory.")
+                        viewModel.speak("Welcome to the listening and pronunciation lab.")
                     }
                 )
             }
@@ -267,7 +268,7 @@ private fun AudioQuizView(
     var submitted by remember(safeIndex, current.entryNumber) { mutableStateOf(false) }
 
     LaunchedEffect(safeIndex, current.entryNumber) {
-        viewModel.speak(current.headword)
+        viewModel.speak(current.answerForm)
     }
 
     LazyColumn(
@@ -282,7 +283,7 @@ private fun AudioQuizView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Entry #${current.entryNumber} • Page ${current.sourcePage} (${safeIndex + 1}/${currentPool.size})",
+                    text = "Entry ${current.listLabel} • Page ${current.sourcePage} (${safeIndex + 1}/${currentPool.size})",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = PrimaryBlue
@@ -329,7 +330,7 @@ private fun AudioQuizView(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
-                            onClick = { viewModel.speak(current.headword) },
+                            onClick = { viewModel.speak(current.answerForm) },
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(CircleShape)
@@ -371,7 +372,7 @@ private fun AudioQuizView(
                     if (submitted) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "#${current.entryNumber} ${current.headword}",
+                            text = "${current.listLabel} ${current.headword}",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = PrimaryBlue
@@ -490,10 +491,10 @@ private fun DictationSpellingView(
 
     var inputSpelling by remember(safeIndex, current.entryNumber) { mutableStateOf("") }
     var submitted by remember(safeIndex, current.entryNumber) { mutableStateOf(false) }
-    val isCorrect = inputSpelling.trim().equals(current.headword.trim(), ignoreCase = true)
+    val isCorrect = SpellingChecker.check(inputSpelling, current.answerForm).isAccepted
 
     LaunchedEffect(safeIndex, current.entryNumber) {
-        viewModel.speak(current.headword)
+        viewModel.speak(current.answerForm)
     }
 
     LazyColumn(
@@ -508,7 +509,7 @@ private fun DictationSpellingView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Dictation #${current.entryNumber} • Page ${current.sourcePage} (${safeIndex + 1}/${currentPool.size})",
+                    text = "Dictation ${current.listLabel} • Page ${current.sourcePage} (${safeIndex + 1}/${currentPool.size})",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = PrimaryBlue
@@ -551,7 +552,7 @@ private fun DictationSpellingView(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     IconButton(
-                        onClick = { viewModel.speak(current.headword) },
+                        onClick = { viewModel.speak(current.answerForm) },
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
@@ -605,7 +606,7 @@ private fun DictationSpellingView(
                     viewModel.recordSkillPractice(
                         entry = current,
                         direction = LearningDirection.SPELLING,
-                        isCorrect = inputSpelling.trim().equals(current.headword.trim(), ignoreCase = true)
+                        isCorrect = SpellingChecker.check(inputSpelling, current.answerForm).isAccepted
                     )
                 },
                 enabled = inputSpelling.isNotBlank() && !submitted,
@@ -776,7 +777,7 @@ private fun AudioSettingsView(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Audio runs 100% offline using your Android device's installed Text-to-Speech synthesis engine across all 1,212 headwords and academic context sentences.",
+                        text = "Audio runs 100% offline using your Android device's installed Text-to-Speech synthesis engine across every headword and academic context sentences.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )

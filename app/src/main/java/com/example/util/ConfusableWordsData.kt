@@ -5,7 +5,9 @@ import com.example.data.model.VocabEntry
 
 object ConfusableWordsData {
 
-    val PAIRS: List<ConfusablePair> = listOf(
+    val PAIRS: List<ConfusablePair> by lazy { BASE_PAIRS + ExtraPracticeData.CONFUSABLE_PAIRS }
+
+    private val BASE_PAIRS: List<ConfusablePair> = listOf(
         ConfusablePair(
             id = "cp_discrete_discreet",
             wordA = "discrete",
@@ -293,33 +295,20 @@ object ConfusableWordsData {
         if (filtered.isEmpty()) return PAIRS
 
         val byNumber = entries.associateBy { it.entryNumber }
+        val byLength = entries.groupBy { it.answerForm.length }
 
         return filtered.map { entry ->
-            // Pick the best contrast partner for this entry:
-            // 1. If it has a duplicate partner in the PDF, contrast the two entries (#A vs #B)
-            // 2. Otherwise find an entry with the same initial letter & POS or adjacent entry on the same page
-            val partner: VocabEntry = entry.duplicateWithNumbers
-                .firstNotNullOfOrNull { byNumber[it] }
-                ?: entries.firstOrNull {
-                    it.entryNumber != entry.entryNumber &&
-                            it.headword.take(3).equals(entry.headword.take(3), ignoreCase = true) &&
-                            !it.headword.equals(entry.headword, ignoreCase = true)
-                }
-                ?: entries.firstOrNull {
-                    it.entryNumber != entry.entryNumber &&
-                            it.sourcePage == entry.sourcePage &&
-                            it.grammaticalLabels.intersect(entry.grammaticalLabels.toSet()).isNotEmpty()
-                }
-                ?: entries.firstOrNull { it.entryNumber != entry.entryNumber }
-                ?: entry
+            val (partner, reason) = entry.duplicateWithNumbers.firstNotNullOfOrNull { byNumber[it] }
+                ?.let { it to "Same headword, different source entry" }
+                ?: findPartner(entry, entries, byLength)
 
             val wordALabel = if (entry.headword.equals(partner.headword, ignoreCase = true)) {
-                "${entry.headword} (#${entry.entryNumber})"
+                "${entry.headword} (${entry.listLabel})"
             } else {
                 entry.headword
             }
             val wordBLabel = if (entry.headword.equals(partner.headword, ignoreCase = true)) {
-                "${partner.headword} (#${partner.entryNumber})"
+                "${partner.headword} (${partner.listLabel})"
             } else {
                 partner.headword
             }
@@ -328,8 +317,9 @@ object ConfusableWordsData {
             val posB = partner.grammaticalLabels.joinToString("/").ifBlank { "term" }
 
             val distinctionText = buildString {
-                append("Entry #${entry.entryNumber} (p.${entry.sourcePage}) '$wordALabel' [$posA] means \"${entry.primaryMeaning}\". ")
-                append("In contrast, Entry #${partner.entryNumber} (p.${partner.sourcePage}) '$wordBLabel' [$posB] means \"${partner.primaryMeaning}\".")
+                append("[$reason] ")
+                append("Entry ${entry.listLabel} (p.${entry.sourcePage}) '$wordALabel' [$posA] means \"${entry.primaryMeaning}\". ")
+                append("In contrast, Entry ${partner.listLabel} (p.${partner.sourcePage}) '$wordBLabel' [$posB] means \"${partner.primaryMeaning}\".")
                 if (entry.hasAnomaly && entry.anomalyNotes.isNotBlank()) {
                     append(" • Source Audit Note: ${entry.anomalyNotes}")
                 }
@@ -342,11 +332,10 @@ object ConfusableWordsData {
                 "In scholarly literature, '${partner.headword}' refers to ${partner.primaryMeaning}."
             }
 
-            val blankedSentence = if (entry.exampleSentence.isNotBlank() &&
-                Regex("\\b${Regex.escape(entry.headword)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(entry.exampleSentence)
-            ) {
-                Regex("\\b${Regex.escape(entry.headword)}\\b", RegexOption.IGNORE_CASE)
-                    .replaceFirst(entry.exampleSentence, "________") +
+            val usable = entry.usableExamples.firstOrNull()
+            val blankedSentence = if (usable != null) {
+                Regex("(?<![A-Za-z])${Regex.escape(entry.answerForm)}(?![A-Za-z])", RegexOption.IGNORE_CASE)
+                    .replaceFirst(usable, "________") +
                         " (Clue: ${entry.primaryMeaning})"
             } else {
                 "In university research, scholars use the [$posA] term ________ to express '${entry.primaryMeaning}'."
@@ -361,8 +350,61 @@ object ConfusableWordsData {
                 exampleB = exB,
                 exerciseSentence = blankedSentence,
                 correctWord = wordALabel,
-                explanation = "'$wordALabel' (#${entry.entryNumber}, Page ${entry.sourcePage}) means \"${entry.primaryMeaning}\", whereas '$wordBLabel' (#${partner.entryNumber}) means \"${partner.primaryMeaning}\"."
+                explanation = "'$wordALabel' (${entry.listLabel}, Page ${entry.sourcePage}) means \"${entry.primaryMeaning}\", whereas '$wordBLabel' (${partner.listLabel}) means \"${partner.primaryMeaning}\"."
             )
         }
+    }
+
+    /** Words in the same family (analyze / analysis) are related, not confusable. */
+    private fun sameFamily(a: VocabEntry, b: VocabEntry): Boolean {
+        val wa = a.answerForm.lowercase()
+        val wb = b.answerForm.lowercase()
+        val familyA = a.wordFamily.map { it.substringBefore(" (").lowercase() }
+        val familyB = b.wordFamily.map { it.substringBefore(" (").lowercase() }
+        val sharedStem = wa.length >= 5 && wb.length >= 5 && wa.take(wa.length - 2) == wb.take(wa.length - 2)
+        return wb in familyA || wa in familyB || wa.startsWith(wb) || wb.startsWith(wa) || sharedStem
+    }
+
+    /**
+     * Best contrast partner: a genuine look-alike spelling first (adapt / adopt), then a
+     * near-synonym that shares a synonym (ample / abundant), then a same-part-of-speech word.
+     */
+    private fun findPartner(
+        entry: VocabEntry,
+        entries: List<VocabEntry>,
+        byLength: Map<Int, List<VocabEntry>>
+    ): Pair<VocabEntry, String> {
+        val word = entry.answerForm.lowercase()
+        if (!word.contains(' ')) {
+            val candidates = (word.length - 2..word.length + 2).flatMap { byLength[it].orEmpty() }
+            val lookAlike = candidates
+                .asSequence()
+                .filter { it.entryNumber != entry.entryNumber && !it.answerForm.contains(' ') }
+                .filter { it.answerForm.lowercase() != word && !sameFamily(entry, it) }
+                .map { it to SpellingChecker.damerauLevenshtein(word, it.answerForm.lowercase()) }
+                .filter { (_, d) -> d <= maxOf(1, word.length / 4) }
+                .minWithOrNull(compareBy<Pair<VocabEntry, Int>> { it.second }.thenBy { if (it.first.collection == entry.collection) 0 else 1 })
+            if (lookAlike != null) return lookAlike.first to "Look-alike spelling"
+        }
+
+        val synonyms = entry.dictionarySynonyms.map { it.lowercase() }.toSet()
+        val nearSynonym = entries.firstOrNull { other ->
+            other.entryNumber != entry.entryNumber &&
+                other.answerForm.lowercase() != word &&
+                !sameFamily(entry, other) &&
+                (other.answerForm.lowercase() in synonyms ||
+                    other.dictionarySynonyms.any { it.lowercase() in synonyms })
+        }
+        if (nearSynonym != null) return nearSynonym to "Similar meaning — choose the precise word"
+
+        val pos = entry.grammaticalLabels.firstOrNull()
+        val samePos = entries.filter {
+            it.entryNumber != entry.entryNumber && it.collection == entry.collection &&
+                (pos == null || pos in it.grammaticalLabels) && it.answerForm.lowercase() != word
+        }
+        val fallback = samePos.getOrNull(Math.floorMod(entry.entryNumber * 31, samePos.size.coerceAtLeast(1)))
+            ?: entries.firstOrNull { it.entryNumber != entry.entryNumber }
+            ?: entry
+        return fallback to "Same part of speech"
     }
 }

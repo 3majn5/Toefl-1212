@@ -71,8 +71,8 @@ import com.example.util.AcademicVocabularyEnricher
 import com.example.util.SentenceCoachAnalyzer
 
 private enum class CoachWordScope(val label: String) {
-    ALL_1212("All 1,212 Words"),
-    BY_PAGE("By Page (1–46)"),
+    ALL_1212("All Words"),
+    BY_PAGE("By Page"),
     UNMASTERED("Due / Unmastered"),
     DIFFICULT("Difficult / Saved")
 }
@@ -131,12 +131,12 @@ fun SentenceCoachScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Sentence Writing Coach (1,212 Words)",
+                            text = "Sentence Writing Coach",
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
                         Text(
-                            text = "Authentic Academic Sentence Production for #1–#1212",
+                            text = "Write real academic sentences with every word",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -165,7 +165,7 @@ fun SentenceCoachScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(vertical = 14.dp)
         ) {
-            // 1,212 Scope & Search Bar
+            // Scope & Search Bar
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     LazyRow(
@@ -196,7 +196,7 @@ fun SentenceCoachScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            items((1..46).toList()) { page ->
+                            items(viewModel.pagesAudit.map { it.page }) { page ->
                                 FilterChip(
                                     selected = selectedPage == page,
                                     onClick = { selectedPage = page },
@@ -213,7 +213,7 @@ fun SentenceCoachScreen(
                     OutlinedTextField(
                         value = wordSearchQuery,
                         onValueChange = { wordSearchQuery = it },
-                        label = { Text("Jump to #1–#1212 or search headword...") },
+                        label = { Text("Jump to a number or search a headword...") },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -241,7 +241,7 @@ fun SentenceCoachScreen(
                                 },
                                 label = {
                                     Text(
-                                        text = "#${entry.entryNumber} ${entry.headword}",
+                                        text = "${entry.listLabel} ${entry.headword}",
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 },
@@ -255,7 +255,7 @@ fun SentenceCoachScreen(
                 }
             }
 
-            // Word Guidance Card with Prev / Next across all 1,212 entries
+            // Word Guidance Card with Prev / Next across all entries
             enrichedTarget?.let { entry ->
                 item {
                     Card(
@@ -272,14 +272,14 @@ fun SentenceCoachScreen(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "#${entry.entryNumber} ${entry.headword}",
+                                        text = "${entry.listLabel} ${entry.headword}",
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = PrimaryBlue
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     IconButton(
-                                        onClick = { viewModel.speak(entry.headword) },
+                                        onClick = { viewModel.speak(entry.answerForm) },
                                         modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(

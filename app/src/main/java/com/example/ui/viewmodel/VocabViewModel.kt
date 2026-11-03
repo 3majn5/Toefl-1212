@@ -3,6 +3,7 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.model.CollectionScope
 import com.example.data.model.FsrsRating
 import com.example.data.model.FsrsSchedulePreview
 import com.example.data.model.LearningDirection
@@ -14,10 +15,19 @@ import com.example.data.model.StudyStats
 import com.example.data.model.StudyStatus
 import com.example.data.model.UserVerificationStatus
 import com.example.data.model.VocabEntry
+import com.example.data.model.WordCollection
 import com.example.data.model.WorkloadForecast
 import com.example.data.model.WritingEvaluationResult
 import com.example.data.repository.VocabRepository
+import com.example.data.model.ThemeMode
+import com.example.data.model.TranslationLanguage
+import com.example.data.model.WeeklyProgress
 import com.example.util.FsrsScheduler
+import com.example.util.GamificationManager
+import com.example.util.GamificationState
+import com.example.util.ReminderScheduler
+import com.example.util.ReminderSettings
+import com.example.util.RewardEvent
 import com.example.util.SentenceCoachAnalyzer
 import com.example.util.TtsHelper
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,14 +48,16 @@ enum class VocabFilter {
     DIFFICULT,
     BOOKMARKED,
     ANOMALIES,
-    BY_PAGE
+    BY_PAGE,
+    BY_SUBLIST
 }
 
 enum class VocabSort {
     BY_NUMBER,
     ALPHABETICAL,
     BY_MASTERY,
-    BY_FORGOTTEN
+    BY_FORGOTTEN,
+    BY_SUBLIST
 }
 
 sealed class SessionPhase {
@@ -72,6 +84,9 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _selectedPage = MutableStateFlow(1)
     val selectedPage: StateFlow<Int> = _selectedPage.asStateFlow()
+
+    private val _selectedSublist = MutableStateFlow(1)
+    val selectedSublist: StateFlow<Int> = _selectedSublist.asStateFlow()
 
     private val _sort = MutableStateFlow(VocabSort.BY_NUMBER)
     val sort: StateFlow<VocabSort> = _sort.asStateFlow()
@@ -100,16 +115,32 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     private val _workloadForecast = MutableStateFlow<List<WorkloadForecast>>(emptyList())
     val workloadForecast: StateFlow<List<WorkloadForecast>> = _workloadForecast.asStateFlow()
 
-    val allEntries: StateFlow<List<VocabEntry>> = repository.getAllEntries()
+    private val _collectionScope = MutableStateFlow(repository.getCollectionScope())
+    /** Which word list(s) the whole app is currently studying. */
+    val collectionScope: StateFlow<CollectionScope> = _collectionScope.asStateFlow()
+
+    /** Every entry from every collection, regardless of the active scope. */
+    val everyEntry: StateFlow<List<VocabEntry>> = repository.getAllEntries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Entries in the active collection scope — what every study screen works with. */
+    val allEntries: StateFlow<List<VocabEntry>> = combine(everyEntry, _collectionScope) { entries, scope ->
+        entries.filter { scope.includes(it) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val collectionCounts: StateFlow<Map<CollectionScope, Int>> = everyEntry.map { entries ->
+        CollectionScope.values().associateWith { scope -> entries.count { scope.includes(it) } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    private val pageAndSublist = combine(_selectedPage, _selectedSublist) { page, sublist -> page to sublist }
 
     val displayEntries: StateFlow<List<VocabEntry>> = combine(
         allEntries,
         searchQuery,
         filter,
-        selectedPage,
+        pageAndSublist,
         sort
-    ) { entries, query, currentFilter, page, currentSort ->
+    ) { entries, query, currentFilter, (page, sublist), currentSort ->
         val now = System.currentTimeMillis()
         var filtered = entries
 
@@ -133,6 +164,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
             VocabFilter.BOOKMARKED -> filtered.filter { it.isBookmarked }
             VocabFilter.ANOMALIES -> filtered.filter { it.hasAnomaly }
             VocabFilter.BY_PAGE -> filtered.filter { it.sourcePage == page }
+            VocabFilter.BY_SUBLIST -> filtered.filter { it.awlSublist == sublist }
         }
 
         when (currentSort) {
@@ -140,6 +172,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
             VocabSort.ALPHABETICAL -> filtered.sortedBy { it.headword.lowercase() }
             VocabSort.BY_MASTERY -> filtered.sortedByDescending { it.repetitionCount }
             VocabSort.BY_FORGOTTEN -> filtered.sortedByDescending { it.forgottenCount }
+            VocabSort.BY_SUBLIST -> filtered.sortedWith(compareBy({ if (it.awlSublist == 0) 99 else it.awlSublist }, { it.headword.lowercase() }))
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -155,8 +188,77 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         repository.computeSkillSummaries(it)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // ── Settings ────────────────────────────────────────────────
+    private val _themeMode = MutableStateFlow(repository.getThemeMode())
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    private val _translationLanguage = MutableStateFlow(repository.getTranslationLanguage())
+    val translationLanguage: StateFlow<TranslationLanguage> = _translationLanguage.asStateFlow()
+
+    private val _reminderSettings = MutableStateFlow(ReminderScheduler.load(application))
+    val reminderSettings: StateFlow<ReminderSettings> = _reminderSettings.asStateFlow()
+
+    fun setThemeMode(mode: ThemeMode) {
+        _themeMode.value = mode
+        repository.saveThemeMode(mode)
+    }
+
+    fun setTranslationLanguage(language: TranslationLanguage) {
+        _translationLanguage.value = language
+        repository.saveTranslationLanguage(language)
+    }
+
+    fun translationFor(entry: VocabEntry, language: TranslationLanguage = _translationLanguage.value): String? =
+        repository.translationFor(entry, language)
+
+    fun setReminderSettings(settings: ReminderSettings) {
+        _reminderSettings.value = settings
+        ReminderScheduler.save(getApplication(), settings)
+    }
+
+    // ── Streaks, XP & badges ────────────────────────────────────
+    private val gamification = GamificationManager(
+        application.getSharedPreferences("toefl_1212_study_prefs", android.content.Context.MODE_PRIVATE)
+    )
+    private val _gameState = MutableStateFlow(gamification.state())
+    val gameState: StateFlow<GamificationState> = _gameState.asStateFlow()
+
+    private val _rewardEvent = MutableStateFlow<RewardEvent?>(null)
+    /** Latest reward for the floating "+XP" / badge animation; cleared by [consumeReward]. */
+    val rewardEvent: StateFlow<RewardEvent?> = _rewardEvent.asStateFlow()
+
+    fun consumeReward() {
+        _rewardEvent.value = null
+    }
+
+    private fun award(xp: Int, perfectSession: Boolean = false, strongSentence: Boolean = false) {
+        val skillsPracticed = skillSummaries.value.count { it.attempts > 0 }
+        val event = gamification.award(xp, studyStats.value, skillsPracticed, perfectSession, strongSentence)
+        _gameState.value = gamification.state()
+        _rewardEvent.value = event
+    }
+
+    fun setDailyXpGoal(xp: Int) {
+        gamification.setDailyGoal(xp)
+        _gameState.value = gamification.state()
+    }
+
+    fun refreshGameState() {
+        _gameState.value = gamification.state()
+    }
+
+    // ── Progress charts ─────────────────────────────────────────
+    private val _weeklyProgress = MutableStateFlow<WeeklyProgress?>(null)
+    val weeklyProgress: StateFlow<WeeklyProgress?> = _weeklyProgress.asStateFlow()
+
+    fun refreshProgress() {
+        viewModelScope.launch { _weeklyProgress.value = repository.getWeeklyProgress(8) }
+    }
+
     val pagesAudit: List<PageAudit>
-        get() = repository.getPagesAudit()
+        get() = repository.getPagesAudit(
+            if (_collectionScope.value == CollectionScope.AWL) WordCollection.AWL else WordCollection.TOEFL
+        )
 
     init {
         viewModelScope.launch {
@@ -176,12 +278,28 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         _workloadForecast.value = forecast
     }
 
+    fun setCollectionScope(scope: CollectionScope) {
+        if (_collectionScope.value == scope) return
+        _collectionScope.value = scope
+        _selectedPage.value = 1
+        repository.saveCollectionScope(scope)
+    }
+
+    private suspend fun dueInScope(now: Long): List<VocabEntry> {
+        val scope = _collectionScope.value
+        return repository.getDueEntries(now).filter { scope.includes(it) }
+    }
+
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
     }
 
     fun setFilter(filter: VocabFilter) {
         _filter.value = filter
+    }
+
+    fun setSelectedSublist(sublist: Int) {
+        _selectedSublist.value = sublist.coerceIn(1, 10)
     }
 
     fun setSelectedPage(page: Int) {
@@ -287,12 +405,14 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
             repository.recordFsrsReview(entry, rating, "FSRS", desiredRetention)
             refreshForecast()
         }
+        award(GamificationManager.xpForRating(rating.value))
 
         val current = _sessionPhase.value
         if (current is SessionPhase.FsrsFlashcards) {
             if (current.currentIndex + 1 < current.entries.size) {
                 _sessionPhase.value = current.copy(currentIndex = current.currentIndex + 1, isFlipped = false)
             } else {
+                award(GamificationManager.XP_SESSION_BONUS)
                 _sessionPhase.value = SessionPhase.Completed(
                     totalLearned = current.entries.size,
                     correctAnswers = current.entries.size,
@@ -317,8 +437,8 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     fun startDailySession() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            val due = repository.getDueEntries(now)
-            val newWords = repository.getNewEntries(_studyPlan.value.dailyNewWords)
+            val due = dueInScope(now)
+            val newWords = repository.getNewEntries(_studyPlan.value.dailyNewWords, _collectionScope.value)
             val sessionPool = (due + newWords).distinctBy { it.entryNumber }
 
             if (sessionPool.isNotEmpty()) {
@@ -333,7 +453,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     fun startReviewAllSession() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            val due = repository.getDueEntries(now)
+            val due = dueInScope(now)
             if (due.isNotEmpty()) {
                 _sessionPhase.value = SessionPhase.FsrsFlashcards(0, due)
             } else {
@@ -347,7 +467,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     fun startShortSession(count: Int = 5) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            val due = repository.getDueEntries(now).take(count)
+            val due = dueInScope(now).take(count)
             val pool = if (due.isNotEmpty()) due else allEntries.value.shuffled().take(count)
             _sessionPhase.value = SessionPhase.FsrsFlashcards(0, pool)
         }
@@ -375,6 +495,13 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.recordSkillPractice(entry, direction, isCorrect)
         }
+        award(if (isCorrect) GamificationManager.XP_CORRECT else GamificationManager.XP_WRONG)
+    }
+
+    /** Scores a quiz "production" answer with the writing coach; strong sentences count as correct. */
+    fun evaluateProduction(sentence: String, question: QuizQuestion): WritingEvaluationResult? {
+        val entry = everyEntry.value.find { it.entryNumber == question.entryNumber } ?: return null
+        return SentenceCoachAnalyzer.evaluate(sentence, entry)
     }
 
     fun advanceIntroCard() {
@@ -399,9 +526,13 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         val current = _sessionPhase.value
         if (current is SessionPhase.Quiz) {
             current.userAnswers[current.currentIndex] = isCorrect
+            award(
+                xp = if (isCorrect) GamificationManager.XP_CORRECT else GamificationManager.XP_WRONG,
+                strongSentence = isCorrect && question.direction == LearningDirection.PRODUCTION
+            )
             viewModelScope.launch {
-                val target = allEntries.value.find { it.headword.equals(question.targetWord, ignoreCase = true) || it.primaryMeaning.equals(question.targetWord, ignoreCase = true) }
-                    ?: allEntries.value.find { it.entryNumber.toString() == question.id }
+                val target = everyEntry.value.find { it.entryNumber == question.entryNumber }
+                    ?: allEntries.value.find { it.headword.equals(question.targetWord, ignoreCase = true) }
                 if (target != null) {
                     repository.recordStudyResult(target, isCorrect)
                     repository.recordSkillPractice(target, question.direction, isCorrect)
@@ -418,6 +549,11 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
                     _sessionPhase.value = SessionPhase.MistakeReview(0, mistakes)
                 } else {
                     val correctCount = current.userAnswers.values.count { it }
+                    val perfect = current.questions.size >= 5
+                    award(
+                        xp = GamificationManager.XP_SESSION_BONUS + if (perfect) GamificationManager.XP_PERFECT_BONUS else 0,
+                        perfectSession = perfect
+                    )
                     _sessionPhase.value = SessionPhase.Completed(
                         totalLearned = current.questions.size,
                         correctAnswers = correctCount,

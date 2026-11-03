@@ -90,7 +90,9 @@ class DataIntegrityTest {
                 grammaticalLabels = labels,
                 exampleSentence = item.optString("exampleSentence", ""),
                 hasAnomaly = item.optBoolean("hasAnomaly", false),
-                anomalyNotes = item.optString("anomalyNotes", "")
+                anomalyNotes = item.optString("anomalyNotes", ""),
+                collocations = item.getJSONArray("collocations").let { arr -> (0 until arr.length()).map { arr.getString(it) } },
+                wordFamily = item.getJSONArray("wordFamily").let { arr -> (0 until arr.length()).map { arr.getString(it) } }
             )
         }
 
@@ -100,12 +102,15 @@ class DataIntegrityTest {
         for (entry in allEntries) {
             val enriched = AcademicVocabularyEnricher.enrich(entry)
             assertTrue("Collocations must not be empty for #${entry.entryNumber}", enriched.collocations.isNotEmpty())
-            assertTrue("Word family must not be empty for #${entry.entryNumber}", enriched.wordFamily.isNotEmpty())
+            assertTrue(
+                "Word family for #${entry.entryNumber} must contain only real forms",
+                enriched.wordFamily.none { it.contains("root)") || it.startsWith("Synonym:") || it.contains("core component") }
+            )
             assertTrue("Grammar patterns must not be empty for #${entry.entryNumber}", enriched.grammarPatterns.isNotEmpty())
             assertTrue("Common mistakes/tips must not be blank for #${entry.entryNumber}", enriched.commonMistakes.isNotBlank())
 
             val cloze = Toefl2026PracticeData.buildClozeForEntry(entry)
-            assertEquals(entry.headword.trim(), cloze.targetWord)
+            assertEquals(entry.answerForm, cloze.targetWord)
             assertTrue(cloze.obscuredWord.contains("_"))
             assertTrue(cloze.textWithBlanks.isNotBlank())
 
@@ -173,5 +178,75 @@ class DataIntegrityTest {
         assertEquals("Important note", firstRestored!!.userNote)
         assertEquals(4.2f, firstRestored.fsrsStability, 0.001f)
         assertEquals(4, firstRestored.recognitionSuccesses)
+    }
+
+    @Test
+    fun testAwlAssetIntegrity() {
+        val root = JSONObject(File("src/main/assets/awl_570.json").readText())
+        assertEquals(570, root.getInt("totalEntries"))
+        val entries = root.getJSONArray("entries")
+        assertEquals(570, entries.length())
+        val numbers = mutableSetOf<Int>()
+        for (i in 0 until entries.length()) {
+            val item = entries.getJSONObject(i)
+            val num = item.getInt("entryNumber")
+            assertTrue("AWL entry numbers use the 2000 offset", num in 2001..2570)
+            numbers.add(num)
+            assertTrue("AWL #$num needs a definition", item.getString("primaryMeaning").isNotBlank())
+            assertTrue("AWL #$num needs a part of speech", item.getJSONArray("grammaticalLabels").length() > 0)
+            assertTrue("AWL #$num needs at least two example sentences", item.getJSONArray("dictionaryExamples").length() >= 2)
+        }
+        assertEquals(570, numbers.size)
+    }
+
+    @Test
+    fun testExampleSentencesAreRealAndUseTheWord() {
+        val awl = JSONObject(File("src/main/assets/awl_570.json").readText()).getJSONArray("entries")
+        val toefl = JSONObject(File("src/main/assets/toefl_1212_extracted.json").readText()).getJSONArray("entries")
+        // These source headwords are ungrammatical fragments that no natural sentence can contain verbatim
+        val sourceFragments = setOf("be beforehand", "be closer resemblance to", "counter of", "little short miraculous")
+        for (array in listOf(toefl, awl)) {
+            for (i in 0 until array.length()) {
+                val item = array.getJSONObject(i)
+                val headword = item.getString("headword")
+                val examples = item.getJSONArray("dictionaryExamples")
+                assertTrue("'$headword' needs two example sentences", examples.length() >= 2)
+                val sentences = (0 until examples.length()).map { examples.getString(it) }
+                assertTrue(
+                    "'$headword' still uses the old template sentence",
+                    sentences.none { it.contains("played a critical role in the development of modern regional trade networks") }
+                )
+                assertTrue("'$headword' contains a PDF ligature", !headword.contains('\uFB01') && !headword.contains('\uFB02'))
+                if (headword !in sourceFragments) {
+                    val entry = VocabEntry(
+                        entryNumber = 0, sourcePage = 1, headword = headword, rawText = "",
+                        definitions = emptyList(), primaryMeaning = "", grammaticalLabels = emptyList(),
+                        exampleSentence = item.getString("exampleSentence"), dictionaryExamples = sentences
+                    )
+                    assertTrue("No example for '$headword' contains the word itself", entry.usableExamples.isNotEmpty())
+                }
+            }
+        }
+    }
+
+    @Test
+    fun testAwlSublistsAndTranslations() {
+        val awl = JSONObject(File("src/main/assets/awl_570.json").readText()).getJSONArray("entries")
+        val counts = IntArray(11)
+        for (i in 0 until awl.length()) counts[awl.getJSONObject(i).getInt("awlSublist")]++
+        for (n in 1..9) assertEquals("Sublist $n has 60 headwords", 60, counts[n])
+        assertEquals("Sublist 10 has 30 headwords", 30, counts[10])
+
+        val translations = JSONObject(File("src/main/assets/translations.json").readText()).getJSONObject("translations")
+        for (file in listOf("toefl_1212_extracted.json", "awl_570.json")) {
+            val entries = JSONObject(File("src/main/assets/$file").readText()).getJSONArray("entries")
+            for (i in 0 until entries.length()) {
+                val item = entries.getJSONObject(i)
+                val key = item.getString("headword").trim().lowercase()
+                val t = translations.getJSONObject(key)
+                for (lang in listOf("fa", "hi", "zh")) assertTrue("$key needs a $lang translation", t.getString(lang).isNotBlank())
+                assertTrue("$key needs real collocations", item.getJSONArray("collocations").length() >= 2)
+            }
+        }
     }
 }

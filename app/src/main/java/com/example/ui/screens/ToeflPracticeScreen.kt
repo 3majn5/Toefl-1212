@@ -71,13 +71,14 @@ import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.SecondaryIndigo
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningOrange
+import com.example.util.SpellingChecker
 import com.example.ui.viewmodel.VocabViewModel
 import com.example.util.SentenceCoachAnalyzer
 import com.example.util.Toefl2026PracticeData
 
 private enum class LabPracticeScope(val label: String) {
-    ALL_1212("All 1,212 Words"),
-    BY_PAGE("By PDF Page (1–46)"),
+    ALL_1212("All Words"),
+    BY_PAGE("By PDF Page"),
     UNMASTERED("Due / Unmastered"),
     DIFFICULT("Difficult / Saved"),
     CURATED_ETS("Curated ETS Set")
@@ -113,12 +114,12 @@ fun ToeflPracticeScreen(
                 title = {
                     Column {
                         Text(
-                            text = "TOEFL 2026 Academic Lab (1,212 Words)",
+                            text = "TOEFL 2026 Academic Lab",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Full 1,212-word ETS Cloze, Reading & Discussion Lab",
+                            text = "Cloze, Reading & Discussion practice for every word",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -205,7 +206,7 @@ fun ToeflPracticeScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            items((1..46).toList()) { page ->
+                            items(viewModel.pagesAudit.map { it.page }) { page ->
                                 FilterChip(
                                     selected = selectedPage == page,
                                     onClick = { selectedPage = page },
@@ -266,7 +267,7 @@ private fun CompleteTheWordsTab(
     var userInput by remember(safeIndex, current.id) { mutableStateOf("") }
     var showHint by remember(safeIndex, current.id) { mutableStateOf(false) }
     var submitted by remember(safeIndex, current.id) { mutableStateOf(false) }
-    val isCorrect = userInput.trim().equals(current.targetWord, ignoreCase = true)
+    val isCorrect = SpellingChecker.check(userInput, current.targetWord).isAccepted
 
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -296,7 +297,7 @@ private fun CompleteTheWordsTab(
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             text = if (currentEntry != null) {
-                                "1,212-Word Cloze Lab: Word ${safeIndex + 1} of $totalCount (#${currentEntry.entryNumber} • Page ${currentEntry.sourcePage})"
+                                "Cloze Lab: Word ${safeIndex + 1} of $totalCount (${currentEntry.listLabel} • Page ${currentEntry.sourcePage})"
                             } else {
                                 "Curated ETS Cloze Lab: Passage ${safeIndex + 1} of $totalCount"
                             },
@@ -447,7 +448,7 @@ private fun CompleteTheWordsTab(
                             viewModel.recordSkillPractice(
                                 entry = entry,
                                 direction = LearningDirection.CONTEXT,
-                                isCorrect = userInput.trim().equals(current.targetWord, ignoreCase = true)
+                                isCorrect = SpellingChecker.check(userInput, current.targetWord).isAccepted
                             )
                         }
                     },
@@ -577,7 +578,7 @@ private fun AcademicReadingTab(
             ) {
                 Text(
                     text = if (currentEntry != null) {
-                        "1,212 Reading Lab • #${currentEntry.entryNumber} (Page ${currentEntry.sourcePage})"
+                        "Reading Lab • ${currentEntry.listLabel} (Page ${currentEntry.sourcePage})"
                     } else {
                         "Curated ETS Reading Passage"
                     },
@@ -829,7 +830,7 @@ private fun AcademicDiscussionTab(
                 value = responseText,
                 onValueChange = { responseText = it },
                 label = {
-                    val wordLabel = currentEntry?.let { "using '${it.headword}' (#${it.entryNumber})" } ?: "your academic discussion response..."
+                    val wordLabel = currentEntry?.let { "using '${it.headword}' (${it.listLabel})" } ?: "your academic discussion response..."
                     Text("Draft $wordLabel")
                 },
                 minLines = 4,

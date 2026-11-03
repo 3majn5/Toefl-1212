@@ -71,7 +71,7 @@ fun PageAuditScreen(
     val anomalyEntries = remember(allEntries) { allEntries.filter { it.hasAnomaly } }
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("46 Pages (${pages.size})", "Anomalies (${anomalyEntries.size})")
+    val tabs = listOf("Pages (${pages.size})", "Anomalies (${anomalyEntries.size})")
 
     Scaffold(
         topBar = {
@@ -84,7 +84,7 @@ fun PageAuditScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Complete 46 pages • 1,212 words • 27 anomalies",
+                            text = "${pages.size} pages • ${allEntries.size} words • ${anomalyEntries.size} anomalies",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -181,7 +181,7 @@ private fun PagesListView(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Every entry from page 1 to 46 has been preserved with original page tracking. Tap any page to filter its exact vocabulary range.",
+                        text = "Every entry from page 1 to ${pages.size} has been preserved with original page tracking. Tap any page to filter its exact vocabulary range.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -352,7 +352,7 @@ private fun AnomaliesListView(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "#${entry.entryNumber}",
+                                text = "${entry.listLabel}",
                                 fontWeight = FontWeight.Bold,
                                 color = PrimaryBlue,
                                 fontSize = 14.sp

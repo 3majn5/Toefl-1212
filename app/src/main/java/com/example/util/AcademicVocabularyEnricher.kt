@@ -531,13 +531,11 @@ object AcademicVocabularyEnricher {
         val key = entry.headword.trim().lowercase()
         val posLabels = entry.grammaticalLabels.map { it.lowercase() }
 
-        val collocations = COLLOCATION_MAP[key]
-            ?: COLLOCATION_MAP.entries.firstOrNull { key.contains(it.key) || it.key.contains(key) }?.value
-            ?: deriveCollocations(entry, key, posLabels)
-
-        val family = WORD_FAMILIES[key]
-            ?: WORD_FAMILIES.entries.firstOrNull { key.length >= 4 && it.key.startsWith(key.take(5)) }?.value
-            ?: deriveWordFamily(entry, key, posLabels)
+        // Curated data only: the word-list assets carry real collocations and families for every
+        // headword; the maps below are a fallback. Nothing is generated, so words without a real
+        // family simply show none.
+        val collocations = COLLOCATION_MAP[key] ?: emptyList()
+        val family = WORD_FAMILIES[key] ?: emptyList()
 
         val grammar = GRAMMAR_PATTERNS[key]
             ?: deriveGrammarPatterns(entry, key, posLabels)
@@ -560,125 +558,6 @@ object AcademicVocabularyEnricher {
         )
     }
 
-    private fun deriveCollocations(entry: VocabEntry, key: String, posLabels: List<String>): List<String> {
-        val result = mutableListOf<String>()
-        // 1. Extract natural 3-5 word window around headword from exampleSentence
-        if (entry.exampleSentence.isNotBlank()) {
-            val words = entry.exampleSentence.replace(Regex("[^A-Za-z0-9\\s'-]"), "").split(Regex("\\s+")).filter { it.isNotBlank() }
-            val firstTargetToken = key.split(" ").first()
-            val idx = words.indexOfFirst { it.lowercase().startsWith(firstTargetToken.take(4)) }
-            if (idx != -1) {
-                val start = (idx - 1).coerceAtLeast(0)
-                val end = (idx + key.split(" ").size + 1).coerceAtMost(words.size)
-                val snippet = words.subList(start, end).joinToString(" ").lowercase()
-                if (snippet.length >= 6) {
-                    result.add(snippet)
-                }
-            }
-        }
-        // 2. Add POS-specific academic collocations
-        val isVerb = posLabels.any { it.startsWith("v") }
-        val isNoun = posLabels.any { it.startsWith("n") }
-        val isAdj = posLabels.any { it.startsWith("adj") || it.startsWith("a") }
-        val isAdv = posLabels.any { it.startsWith("adv") }
-
-        when {
-            key.contains(" ") -> {
-                result.add("use '$key' in academic prose")
-                result.add("$key in empirical studies")
-            }
-            isVerb -> {
-                result.add("$key the process")
-                result.add("significantly $key")
-            }
-            isAdj -> {
-                result.add("$key characteristic")
-                result.add("highly $key")
-            }
-            isNoun -> {
-                result.add("primary $key")
-                result.add("analyze the $key")
-            }
-            isAdv -> {
-                result.add("$key observed")
-                result.add("$key correlated with")
-            }
-            else -> {
-                result.add("$key in academic context")
-                result.add("demonstrate $key")
-            }
-        }
-        return result.distinct().take(3)
-    }
-
-    private fun deriveWordFamily(entry: VocabEntry, key: String, posLabels: List<String>): List<String> {
-        if (key.contains(" ")) {
-            val mainTokens = key.split(" ").filter { it.length >= 4 }
-            return if (mainTokens.isNotEmpty()) {
-                mainTokens.map { "$it (core component)" }
-            } else {
-                listOf("$key (fixed expression)")
-            }
-        }
-        val forms = mutableListOf<String>()
-        when {
-            key.endsWith("tion") -> {
-                val stem = key.removeSuffix("tion")
-                forms.add("$key (n.)")
-                forms.add("${stem}te (v. root)")
-                forms.add("${key}al (adj.)")
-            }
-            key.endsWith("ment") && key.length > 6 -> {
-                val stem = key.removeSuffix("ment")
-                forms.add("$key (n.)")
-                forms.add("$stem (v.)")
-            }
-            key.endsWith("ity") && key.length > 5 -> {
-                val stem = key.removeSuffix("ity")
-                forms.add("$key (n.)")
-                forms.add("${stem}e / $stem (adj. root)")
-            }
-            key.endsWith("ly") && key.length > 5 -> {
-                val stem = key.removeSuffix("ly")
-                forms.add("$key (adv.)")
-                forms.add("$stem (adj.)")
-            }
-            key.endsWith("ive") && key.length > 5 -> {
-                forms.add("$key (adj.)")
-                forms.add("${key}ly (adv.)")
-                forms.add("${key}ness (n.)")
-            }
-            key.endsWith("ous") && key.length > 5 -> {
-                forms.add("$key (adj.)")
-                forms.add("${key}ly (adv.)")
-            }
-            key.endsWith("able") || key.endsWith("ible") -> {
-                val stem = key.dropLast(4)
-                forms.add("$key (adj.)")
-                forms.add("${key.dropLast(1)}ility (n.)")
-                if (stem.length >= 3) forms.add("$stem (root)")
-            }
-            key.endsWith("ize") || key.endsWith("ise") -> {
-                val stem = key.dropLast(3)
-                forms.add("$key (v.)")
-                forms.add("${stem}ization (n.)")
-            }
-            key.endsWith("ate") && key.length > 5 -> {
-                val stem = key.removeSuffix("ate")
-                forms.add("$key (v./adj.)")
-                forms.add("${stem}ation (n.)")
-            }
-            else -> {
-                val posTag = entry.grammaticalLabels.firstOrNull() ?: "academic term"
-                forms.add("${entry.headword} ($posTag)")
-                if (entry.primaryMeaning.isNotBlank()) {
-                    forms.add("Synonym: ${entry.primaryMeaning}")
-                }
-            }
-        }
-        return forms.distinct()
-    }
-
     private fun deriveGrammarPatterns(entry: VocabEntry, key: String, posLabels: List<String>): List<String> {
         val patterns = mutableListOf<String>()
         val preps = listOf(" of", " to", " with", " from", " in", " for", " on", " into", " upon", " between")
@@ -696,14 +575,14 @@ object AcademicVocabularyEnricher {
             isAdj -> patterns.add("Attributive/Predicative Adjective: [${entry.headword} + Noun] or [be/become + ${entry.headword}]")
             isNoun -> patterns.add("Academic Noun: [Determiner/Adjective + ${entry.headword}]")
             isAdv -> patterns.add("Adverbial Modifier: modifies verbs, adjectives, or entire clauses")
-            else -> patterns.add("Core TOEFL Expression (#${entry.entryNumber}, Page ${entry.sourcePage}): used in formal academic reading & lectures")
+            else -> patterns.add("Core TOEFL Expression (${entry.listLabel}, Page ${entry.sourcePage}): used in formal academic reading & lectures")
         }
         return patterns
     }
 
     private fun deriveLearnerTrap(entry: VocabEntry, key: String, posLabels: List<String>): String {
         if (entry.hasAnomaly && entry.anomalyNotes.isNotBlank()) {
-            return "Source Audit Note (#${entry.entryNumber}): ${entry.anomalyNotes}"
+            return "Source Audit Note (${entry.listLabel}): ${entry.anomalyNotes}"
         }
         if (entry.hasDuplicateHeadword && entry.duplicateWithNumbers.isNotEmpty()) {
             return "Polysemy Alert: '${entry.headword}' also appears at entry ${entry.duplicateWithNumbers.joinToString { "#$it" }}. Pay close attention to contextual nuance."

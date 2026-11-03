@@ -6,13 +6,27 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+// Slightly larger line heights than the defaults keep long example sentences easy to read
 val Typography = Typography(
-    bodyLarge = TextStyle(
+    displaySmall = TextStyle(
         fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 34.sp,
+        lineHeight = 40.sp,
+        letterSpacing = (-0.5).sp
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
+        letterSpacing = (-0.25).sp
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        lineHeight = 30.sp
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.Default,
@@ -20,6 +34,34 @@ val Typography = Typography(
         fontSize = 22.sp,
         lineHeight = 28.sp,
         letterSpacing = 0.sp
+    ),
+    titleMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 17.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.1.sp
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 25.sp,
+        letterSpacing = 0.3.sp
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 21.sp,
+        letterSpacing = 0.2.sp
+    ),
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 15.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.2.sp
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.Default,

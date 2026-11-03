@@ -1,5 +1,10 @@
 package com.example.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -15,6 +20,8 @@ import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.ListeningLabScreen
 import com.example.ui.screens.PageAuditScreen
 import com.example.ui.screens.PracticeModesScreen
+import com.example.ui.screens.ProgressScreen
+import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SentenceCoachScreen
 import com.example.ui.screens.StudyPlannerScreen
 import com.example.ui.screens.StudySessionScreen
@@ -35,6 +42,8 @@ object Destinations {
     const val SENTENCE_COACH = "sentence_coach"
     const val CONFUSABLE_WORDS = "confusable_words"
     const val BACKUP_RESTORE = "backup_restore"
+    const val SETTINGS = "settings"
+    const val PROGRESS = "progress"
 }
 
 @Composable
@@ -48,7 +57,23 @@ fun AppNavigation(
     NavHost(
         navController = navController,
         startDestination = Destinations.DASHBOARD,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = {
+            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(380, easing = FastOutSlowInEasing)) +
+                fadeIn(tween(380))
+        },
+        exitTransition = {
+            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(380, easing = FastOutSlowInEasing)) { it / 4 } +
+                fadeOut(tween(250))
+        },
+        popEnterTransition = {
+            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(380, easing = FastOutSlowInEasing)) { it / 4 } +
+                fadeIn(tween(380))
+        },
+        popExitTransition = {
+            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(380, easing = FastOutSlowInEasing)) +
+                fadeOut(tween(250))
+        }
     ) {
         composable(Destinations.DASHBOARD) {
             DashboardScreen(
@@ -65,7 +90,9 @@ fun AppNavigation(
                 onNavigateToStudyPlanner = { navController.navigate(Destinations.STUDY_PLANNER) },
                 onNavigateToSentenceCoach = { navController.navigate(Destinations.SENTENCE_COACH) },
                 onNavigateToConfusables = { navController.navigate(Destinations.CONFUSABLE_WORDS) },
-                onNavigateToBackupRestore = { navController.navigate(Destinations.BACKUP_RESTORE) }
+                onNavigateToBackupRestore = { navController.navigate(Destinations.BACKUP_RESTORE) },
+                onNavigateToSettings = { navController.navigate(Destinations.SETTINGS) },
+                onNavigateToProgress = { navController.navigate(Destinations.PROGRESS) }
             )
         }
 
@@ -162,6 +189,14 @@ fun AppNavigation(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
+        }
+
+        composable(Destinations.SETTINGS) {
+            SettingsScreen(viewModel = viewModel, onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Destinations.PROGRESS) {
+            ProgressScreen(viewModel = viewModel, onNavigateBack = { navController.popBackStack() })
         }
 
         composable(Destinations.BACKUP_RESTORE) {
