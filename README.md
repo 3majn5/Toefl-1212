@@ -1,11 +1,36 @@
 # TOEFL 1212: Intelligent Offline Vocabulary Mastery System 🎓
 
-[![Platform](https://img.shields.io/badge/Platform-Android%2014%2B-green.svg)](https://developer.android.com)
+[![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B-green.svg)](https://developer.android.com)
 [![Language](https://img.shields.io/badge/Language-Kotlin%20100%25-purple.svg)](https://kotlinlang.org)
 [![UI](https://img.shields.io/badge/UI-Jetpack%20Compose%20%2F%20Material%203-blue.svg)](https://developer.android.com/jetpack/compose)
 [![Algorithm](https://img.shields.io/badge/Algorithm-FSRS%20Spaced%20Repetition-orange.svg)](https://github.com/open-spaced-repetition/fsrs4anki)
 [![Offline](https://img.shields.io/badge/Database-100%25%20Offline%20First-success.svg)](https://developer.android.com/training/data-storage/room)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+---
+
+## 📥 Download
+
+[![Download APK](https://img.shields.io/badge/Download%20APK-v1.2.0-5B5BD6?style=for-the-badge&logo=android&logoColor=white)](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.2.0-debug.apk)
+
+**[⬇️ Download TOEFL 1212 v1.2.0 for Android (APK, ~18 MB)](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.2.0-debug.apk)** — free, works offline, Android 7.0 or newer.
+
+**How to install:** open the downloaded file on your phone. If Android asks, allow installs from your browser or file manager ("Install unknown apps"), then tap **Install**.
+
+> **Updating from v1.0.x?** That version was signed with a different key, so Android can't install over it. First open **Backup & Export → Copy Full JSON Backup** in the old app and save the text, uninstall it, install v1.2.0, then paste the backup in **Backup & Export** to restore your progress. Updating from v1.1.0 works directly.
+
+- 🇮🇷 **دانلود:** [نسخه ۱٫۲٫۰ اندروید را دریافت کنید](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.2.0-debug.apk) — فایل را روی گوشی باز کنید و در صورت درخواست، «نصب برنامه‌های ناشناس» را مجاز کنید.
+- 🇮🇳 **डाउनलोड:** [Android के लिए v1.2.0 डाउनलोड करें](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.2.0-debug.apk) — फ़ाइल खोलें और पूछे जाने पर "अज्ञात ऐप्स इंस्टॉल करें" की अनुमति दें।
+- 🇨🇳 **下载：** [下载 Android 版 v1.2.0](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.2.0-debug.apk) — 在手机上打开文件，如有提示请允许“安装未知应用”。
+
+### ✨ What's new in v1.2.0
+- 🎓 Full **Academic Word List** (570 words, sublists 1–10) alongside the TOEFL 1212 list
+- 🌐 **Translations** in Persian, Hindi and Chinese
+- 📝 Real example sentences, collocations, word families and antonyms for every word
+- 🔥 **Streaks, XP, levels and badges**, plus ⏰ **daily reminders**
+- 📈 **Progress charts**: words learned per week and accuracy per skill
+- 🌙 **Dark mode**, a refreshed color palette, and smooth animations
+- ✍️ Typo-tolerant spelling, a smarter writing coach, and better look-alike word drills
 
 ---
 
@@ -27,6 +52,11 @@ The application preserves the exact, authentic dataset of **1,212 numbered acade
 
 ### 🌟 Key Capabilities
 - 🎓 **Academic Word List (AWL) Collection:** All 570 AWL headwords (Coxhead) with learner definitions, synonyms, and two real example sentences each. Switch between **TOEFL 1212**, **AWL 570**, or **Both** from the Dashboard or Browse screen; every lab and quiz follows the active list.
+- 🌐 **Native-Language Translations:** Short Persian (فارسی), Hindi (हिन्दी), and Chinese (中文) glosses for every word, shown on flashcards, in Browse, and on the word page. Choose your language in Settings.
+- 🔥 **Streaks, XP & Badges:** Earn XP for every review and quiz, level up, keep a daily streak, and unlock 15 badges.
+- ⏰ **Daily Reminders:** A notification at the time you choose with your due-review count, skipped on days you've already studied.
+- 📈 **Progress Charts:** Words learned per week and accuracy per skill over the last 8 weeks, with a table view.
+- 🌙 **Light / Dark Theme:** Switch from the Dashboard or follow your phone's setting.
 - 📚 **Authentic 1,212 Words:** Preserves original entry numbering (#1–#1212), source page references (Pages 1–46), verbatim definitions, and all 27 documented source anomalies.
 - 🧠 **Adaptive FSRS Spaced Repetition:** Calculates memory stability ($S$), difficulty ($D$), and recall probability ($R$) with real-time interval previews on every rating button.
 - 🎯 **7-Channel Skill Mastery:** Tracks performance separately across Definition Recognition, Reverse Recall, Spelling & Typing, Context Gap-Fill, Synonym Discrimination, Production Writing, and Listening.
@@ -91,6 +121,11 @@ The application preserves the exact, authentic dataset of **1,212 numbered acade
 این نرم‌افزار مجموعه کامل و اصیل **۱٬۲۱۲ واژه دانشگاهی** استخراج‌شده از فهرست رسمی ۴۶ صفحه‌ای تافل (#۱ تا #۱۲۱۲) را بدون هیچ‌گونه دخل و تصرف حفظ کرده و با به‌کارگیری الگوریتم علمی **تکرار فاصله‌دار تطبیقی (FSRS)**، آزمایشگاه‌های چندگانه مهارت‌آموزی، تنظیم سرعت شنیداری و مربی جمله‌سازی، تسلط پایدار و انتقال مؤثر واژگان به آزمون را تضمین می‌نماید.
 
 ### 🌟 قابلیت‌های کلیدی
+- 🎓 **فهرست واژگان آکادمیک (AWL):** هر ۵۷۰ واژه به همراه زیرفهرست‌های ۱ تا ۱۰، تعریف، مترادف و دو جمله نمونه واقعی؛ امکان جابه‌جایی بین TOEFL 1212، AWL یا هر دو.
+- 🌐 **ترجمه فارسی، هندی و چینی:** معنی کوتاه هر واژه به زبان شما روی کارت‌ها و صفحه واژه (از بخش تنظیمات انتخاب کنید).
+- 🔥 **رکورد روزانه، امتیاز (XP) و نشان‌ها:** با هر مرور امتیاز بگیرید، سطح خود را بالا ببرید و ۱۵ نشان باز کنید.
+- ⏰ **یادآور روزانه:** اعلان در ساعت دلخواه با تعداد واژه‌های آماده مرور.
+- 📈 **نمودار پیشرفت و حالت تاریک:** واژه‌های یادگرفته‌شده در هر هفته، دقت هر مهارت، و تغییر تم روشن/تاریک.
 - 📚 **فهرست اصیل ۱٬۲۱۲ واژه:** نگهداری دقیق شماره‌گذاری (#۱ تا #۱۲۱۲)، شماره صفحه منبع (صفحات ۱ تا ۴۶)، تعاریف کلمه‌به‌کلمه و ۲۷ مورد ناهنجاری مستند منبع (واژه‌های تکراری و یادداشت‌های اسکن).
 - 🧠 **الگوریتم تطبیقی FSRS:** محاسبه پایداری حافظه ($S$)، درجه سختی ($D$) و احتمال یادآوری ($R$) همراه با نمایش پیش‌نمایش فاصله زمانی روی کلیدهای ثبت نتیجه.
 - 🎯 **ردیابی مستقل ۷ مهارت زبانی:** تفکیک تسلط در تشخیص معنی، یادآوری معکوس، املا و تایپ، تکمیل جای خالی در متن، تفکیک مترادف‌ها، تولید جمله و درک شنیداری.
@@ -155,6 +190,11 @@ The application preserves the exact, authentic dataset of **1,212 numbered acade
 यह एप्लिकेशन आधिकारिक 46 पृष्ठों की सूची से लिए गए सभी **1,212 क्रमांकित शैक्षणिक शब्दों** (#1 से #1212) की शुद्धता और अखंडता को सुरक्षित रखता है। यह उन्नत **FSRS (फ्री स्पेस्ड रिपीटिशन शेड्यूलर)** एल्गोरिद्म, बहुआयामी अभ्यास प्रयोगशालाओं, उच्चारण गति नियंत्रण और अकादमिक वाक्य प्रशिक्षक के माध्यम से शब्दों की दीर्घकालिक स्मृति सुनिश्चित करता है।
 
 ### 🌟 प्रमुख विशेषताएँ
+- 🎓 **अकादमिक वर्ड लिस्ट (AWL):** सभी 570 शब्द, सबलिस्ट 1–10, परिभाषा, पर्यायवाची और दो वास्तविक उदाहरण वाक्यों के साथ; TOEFL 1212, AWL या दोनों के बीच एक टैप में बदलें।
+- 🌐 **हिन्दी, फ़ारसी और चीनी अनुवाद:** हर शब्द का छोटा अर्थ आपकी भाषा में, फ़्लैशकार्ड और शब्द पृष्ठ पर (सेटिंग्स में चुनें)।
+- 🔥 **स्ट्रीक, XP और बैज:** हर समीक्षा पर XP कमाएँ, लेवल बढ़ाएँ और 15 बैज अनलॉक करें।
+- ⏰ **दैनिक रिमाइंडर:** आपके चुने समय पर समीक्षा के लिए तैयार शब्दों की सूचना।
+- 📈 **प्रगति चार्ट और डार्क मोड:** हर सप्ताह सीखे गए शब्द, हर कौशल की सटीकता, और लाइट/डार्क थीम।
 - 📚 **प्रामाणिक 1,212 शब्द संग्रह:** मूल क्रमांक (#1–#1212), स्रोत पृष्ठ संदर्भ (पृष्ठ 1–46), प्रामाणिक परिभाषाएँ और सभी 27 प्रलेखित स्रोत विसंगतियाँ सुरक्षित।
 - 🧠 **अनुकूली FSRS रिपीटिशन एल्गोरिद्म:** स्मृति स्थिरता ($S$), शब्द कठिनाई ($D$) और स्मरण संभावना ($R$) की वास्तविक समय में गणना।
 - 🎯 **7 कौशल-आधारित अभ्यास मोड:** अर्थ पहचान, विपरीत स्मरण, वर्तनी व टाइपिंग, संदर्भ वाक्य भराव, पर्यायवाची भेद, वाक्य रचना और श्रवण पहचान।
@@ -219,6 +259,11 @@ The application preserves the exact, authentic dataset of **1,212 numbered acade
 本应用完整收录源自托福经典46页官方词汇清单中的全部 **1,212个核心学术词汇**（编号 #1 至 #1212）。系统严格保护原始数据的一致性，搭载先进的 **FSRS 自适应间隔重复记忆算法**，提供7大维度深度技能追踪、听力变速训练营及学术造句教练，帮助考生从“死记硬背”彻底跃升至“学术实战应用”。
 
 ### 🌟 核心功能亮点
+- 🎓 **学术词汇表（AWL）：** 完整收录570个词及1–10子表，配有释义、同义词和两个真实例句；可一键切换 TOEFL 1212、AWL 或两者合并。
+- 🌐 **中文、波斯语和印地语翻译：** 在闪卡和单词页显示母语简明释义（在设置中选择）。
+- 🔥 **连续打卡、经验值与徽章：** 每次复习获得经验值，升级并解锁15枚徽章。
+- ⏰ **每日提醒：** 在你设定的时间推送待复习单词数量。
+- 📈 **学习进度图表与深色模式：** 每周新学单词数、各技能正确率，以及浅色/深色主题切换。
 - 📚 **严谨收录官方1212词：** 完整保留原始编号（#1–#1212）、原始46页对应出处、逐字原文释义，以及官方清单中记录的全部27处文献异读/校勘注释。
 - 🧠 **FSRS 自适应遗忘复习算法：** 基于记忆半衰期稳定性（$S$）、词汇难度值（$D$）及可提取概率（$R$），在每个评分按钮上实时呈现下一次复习间隔预测。
 - 🎯 **7大独立技能维度追踪：** 区分词义辨析、逆向回忆、拼写默写、语境填空、同义替换、学术造句和听力辨词，杜绝“看懂却不会用”的假性掌握。
@@ -279,8 +324,8 @@ The application preserves the exact, authentic dataset of **1,212 numbered acade
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/toefl-1212.git
-cd toefl-1212
+git clone https://github.com/3majn5/Toefl-1212.git
+cd Toefl-1212
 
 # Run local unit tests (Robolectric JVM)
 gradle :app:testDebugUnitTest
@@ -289,11 +334,12 @@ gradle :app:testDebugUnitTest
 gradle :app:assembleDebug
 ```
 
-- **Runtime:** Android 8.0+ (API 26), Target SDK 34 (Android 14)
+- **Runtime:** Android 7.0+ (API 24), Target SDK 35, compiled against API 36.1
 - **UI Framework:** Jetpack Compose + Material 3 Dynamic Theming
 - **Language:** Kotlin 100% (Coroutines & StateFlow)
-- **Persistence:** Room Database v3 with robust SQL schema migrations
-- **Local Asset:** Pre-built APK available at `export/Toefl 1212.apk`
+- **Persistence:** Room Database v5 with step-by-step schema migrations (progress is kept across updates)
+- **Background work:** WorkManager for daily study reminders
+- **Pre-built APK:** [`export/Toefl_1212_v1.2.0-debug.apk`](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.2.0-debug.apk)
 
 ---
 
