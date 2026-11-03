@@ -68,7 +68,21 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.example.data.model.CollectionScope
 import com.example.data.model.LearningDirection
+import com.example.ui.components.AnimatedCounter
+import com.example.ui.components.AnimatedEntrance
+import com.example.ui.components.AnimatedProgressBar
+import com.example.ui.components.CollectionSwitcher
+import com.example.ui.components.PulsingDot
+import com.example.ui.components.bouncyClickable
+import com.example.ui.components.pressScale
+import com.example.ui.theme.BrandIndigo
+import com.example.ui.theme.BrandIndigoDark
+import com.example.ui.theme.FreshMint
+import com.example.ui.theme.HeroGradient
+import com.example.ui.theme.WarmCoralLight
 import com.example.ui.theme.AccentGold
 import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.Navy800
@@ -99,6 +113,10 @@ fun DashboardScreen(
     val isInitializing by viewModel.isInitializing.collectAsState()
     val studyPlan by viewModel.studyPlan.collectAsState()
     val skillSummaries by viewModel.skillSummaries.collectAsState()
+    val collectionScope by viewModel.collectionScope.collectAsState()
+    val collectionCounts by viewModel.collectionCounts.collectAsState()
+    val scopedEntries by viewModel.allEntries.collectAsState()
+    val anomalyCount = scopedEntries.count { it.hasAnomaly }
 
     var showGoalDialog by remember { mutableStateOf(false) }
 
@@ -108,12 +126,12 @@ fun DashboardScreen(
                 title = {
                     Column {
                         Text(
-                            text = "TOEFL 1212",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
+                            text = "Vocab Mastery",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 22.sp
                         )
                         Text(
-                            text = "Intelligent Spaced Repetition Mastery",
+                            text = "Studying: ${collectionScope.displayName}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -168,7 +186,7 @@ fun DashboardScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = PrimaryBlue)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Loading 1,212 entries from 46 PDF pages...")
+                    Text("Preparing your TOEFL 1212 & AWL 570 word lists...")
                 }
             }
         } else {
@@ -180,6 +198,16 @@ fun DashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
+                item {
+                    AnimatedEntrance(index = 0) {
+                        CollectionSwitcher(
+                            selected = collectionScope,
+                            counts = collectionCounts,
+                            onSelect = viewModel::setCollectionScope
+                        )
+                    }
+                }
+
                 // Exam Countdown & Streak Banner
                 studyPlan.targetExamTimestamp?.let {
                     val days = studyPlan.daysUntilExam ?: 0
@@ -237,6 +265,7 @@ fun DashboardScreen(
 
                 // Official PDF Extraction Integrity Banner
                 item {
+                  AnimatedEntrance(index = 3) {
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer
@@ -264,13 +293,21 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Official 46-Page PDF Extracted",
+                                    text = when (collectionScope) {
+                                        CollectionScope.TOEFL -> "Official 46-Page TOEFL PDF"
+                                        CollectionScope.AWL -> "Academic Word List (Coxhead)"
+                                        CollectionScope.ALL -> "TOEFL 1212 + Academic Word List"
+                                    },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Text(
-                                    text = "All 1,212 numbered entries intact with 27 documented source anomalies.",
+                                    text = when (collectionScope) {
+                                        CollectionScope.TOEFL -> "All ${stats.totalEntries} numbered entries intact with $anomalyCount documented source anomalies."
+                                        CollectionScope.AWL -> "${stats.totalEntries} headwords used most across university texts, each with real example sentences."
+                                        CollectionScope.ALL -> "${stats.totalEntries} words in one study pool. Shared words keep separate progress per list."
+                                    },
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                                 )
@@ -284,19 +321,19 @@ fun DashboardScreen(
                             }
                         }
                     }
+                  }
                 }
 
                 // Main Hero: Today's FSRS Study Session
                 item {
+                  AnimatedEntrance(index = 2) {
                     Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = BrandIndigo),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                        shape = RoundedCornerShape(28.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
+                        Column(modifier = Modifier.background(HeroGradient).padding(22.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -307,21 +344,26 @@ fun DashboardScreen(
                                         Icon(
                                             imageVector = Icons.Default.Psychology,
                                             contentDescription = null,
-                                            tint = PrimaryBlue,
-                                            modifier = Modifier.size(22.dp)
+                                            tint = Color.White,
+                                            modifier = Modifier.size(24.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = "Today's FSRS Session",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 18.sp
+                                            text = "Today's Session",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 20.sp,
+                                            color = Color.White
                                         )
+                                        if (stats.dueCount > 0) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            PulsingDot(color = WarmCoralLight)
+                                        }
                                     }
                                     val estMinutes = ((stats.dueCount * 0.7f) + (dailyGoal * 1.5f)).toInt().coerceAtLeast(5)
                                     Text(
                                         text = "${stats.dueCount} due reviews + $dailyGoal new words (~$estMinutes mins)",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        fontSize = 13.sp,
+                                        color = Color.White.copy(alpha = 0.85f)
                                     )
                                 }
                                 IconButton(
@@ -331,7 +373,7 @@ fun DashboardScreen(
                                     Icon(
                                         imageVector = Icons.Default.Tune,
                                         contentDescription = "Configure Daily Lesson Size",
-                                        tint = MaterialTheme.colorScheme.primary
+                                        tint = Color.White
                                     )
                                 }
                             }
@@ -343,35 +385,38 @@ fun DashboardScreen(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 StatPill(
-                                    title = "Due Reviews",
+                                    title = "Due",
                                     count = stats.dueCount,
-                                    color = if (stats.dueCount > 0) WarningOrange else SuccessGreen,
+                                    color = Color.White,
                                     modifier = Modifier.weight(1f)
                                 )
                                 StatPill(
-                                    title = "New Words",
+                                    title = "New",
                                     count = stats.newCount,
-                                    color = PrimaryBlue,
+                                    color = Color.White,
                                     modifier = Modifier.weight(1f)
                                 )
                                 StatPill(
                                     title = "Mastered",
                                     count = stats.masteredCount,
-                                    color = SuccessGreen,
+                                    color = Color.White,
                                     modifier = Modifier.weight(1f)
                                 )
                             }
 
                             Spacer(modifier = Modifier.height(20.dp))
 
+                            val startSource = remember { MutableInteractionSource() }
                             Button(
                                 onClick = onStartDailySession,
+                                interactionSource = startSource,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(52.dp)
+                                    .height(56.dp)
+                                    .pressScale(startSource)
                                     .testTag("button_start_session"),
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                                shape = RoundedCornerShape(12.dp)
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = BrandIndigoDark),
+                                shape = RoundedCornerShape(18.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
@@ -387,10 +432,12 @@ fun DashboardScreen(
                             }
                         }
                     }
+                  }
                 }
 
                 // 7 Practice Channels Skill Health Overview
                 item {
+                  AnimatedEntrance(index = 4) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -444,23 +491,22 @@ fun DashboardScreen(
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
-                                    LinearProgressIndicator(
-                                        progress = { summary.accuracy },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(5.dp)
-                                            .clip(RoundedCornerShape(3.dp)),
+                                    AnimatedProgressBar(
+                                        progress = summary.accuracy,
+                                        modifier = Modifier.fillMaxWidth(),
                                         color = if (summary.accuracy >= 0.8f) SuccessGreen else if (summary.accuracy >= 0.5f) PrimaryBlue else AccentGold,
-                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                        height = 6
                                     )
                                 }
                             }
                         }
                     }
+                  }
                 }
 
                 // Overall Completion Progress
                 item {
+                  AnimatedEntrance(index = 5) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -488,14 +534,11 @@ fun DashboardScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            LinearProgressIndicator(
-                                progress = { (stats.overallCompletionPct / 100f).coerceIn(0f, 1f) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(10.dp)
-                                    .clip(RoundedCornerShape(5.dp)),
-                                color = PrimaryBlue,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            AnimatedProgressBar(
+                                progress = stats.overallCompletionPct / 100f,
+                                modifier = Modifier.fillMaxWidth(),
+                                color = FreshMint,
+                                height = 12
                             )
 
                             Spacer(modifier = Modifier.height(14.dp))
@@ -505,7 +548,7 @@ fun DashboardScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "${stats.learningCount + stats.reviewingCount + stats.masteredCount} of 1,212 introduced",
+                                    text = "${stats.learningCount + stats.reviewingCount + stats.masteredCount} of ${stats.totalEntries} introduced",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -518,6 +561,7 @@ fun DashboardScreen(
                             }
                         }
                     }
+                  }
                 }
 
                 // Academic Labs & Advanced Practice Section
@@ -532,6 +576,7 @@ fun DashboardScreen(
 
                 // Row: TOEFL 2026 Lab & Listening Lab
                 item {
+                  AnimatedEntrance(index = 6) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -558,10 +603,12 @@ fun DashboardScreen(
                                 .testTag("card_listening_lab")
                         )
                     }
+                  }
                 }
 
                 // Row: Confusable Words & Sentence Coach
                 item {
+                  AnimatedEntrance(index = 7) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -588,16 +635,18 @@ fun DashboardScreen(
                                 .testTag("card_sentence_coach")
                         )
                     }
+                  }
                 }
 
                 // Row: Browse & 7 Practice Modes
                 item {
+                  AnimatedEntrance(index = 8) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         ActionCard(
-                            title = "Browse 1,212 Words",
+                            title = "Browse ${stats.totalEntries} Words",
                             subtitle = "By #number, A-Z, or page",
                             icon = Icons.Default.CollectionsBookmark,
                             color = PrimaryBlue,
@@ -621,10 +670,12 @@ fun DashboardScreen(
                                 .testTag("card_practice_modes")
                         )
                     }
+                  }
                 }
 
                 // Row: Study Planner & Backup/Restore
                 item {
+                  AnimatedEntrance(index = 9) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -651,10 +702,12 @@ fun DashboardScreen(
                                 .testTag("card_backup_export")
                         )
                     }
+                  }
                 }
 
                 // Difficult words & Source anomalies
                 item {
+                  AnimatedEntrance(index = 10) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -675,7 +728,7 @@ fun DashboardScreen(
 
                         ActionCard(
                             title = "Source Anomalies",
-                            subtitle = "27 duplicate/OCR notes",
+                            subtitle = if (anomalyCount > 0) "$anomalyCount duplicate/OCR notes" else "Page-by-page list audit",
                             icon = Icons.Default.Warning,
                             color = ErrorRed,
                             onClick = onNavigateToAudit,
@@ -684,6 +737,7 @@ fun DashboardScreen(
                                 .testTag("card_audit_matrix")
                         )
                     }
+                  }
                 }
             }
         }
@@ -731,24 +785,23 @@ private fun StatPill(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = color.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.16f),
+        shape = RoundedCornerShape(16.dp),
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "$count",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
+            AnimatedCounter(
+                value = count,
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
                 color = color
             )
             Text(
                 text = title,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontSize = 12.sp,
+                color = color.copy(alpha = 0.85f)
             )
         }
     }
@@ -767,15 +820,15 @@ private fun ActionCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp),
-        modifier = modifier.clickable(onClick = onClick)
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        shape = RoundedCornerShape(22.dp),
+        modifier = modifier.bouncyClickable(onClick)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
-                    .background(color.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                    .size(44.dp)
+                    .background(color.copy(alpha = 0.15f), RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(

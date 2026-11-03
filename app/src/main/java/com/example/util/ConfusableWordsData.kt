@@ -5,7 +5,9 @@ import com.example.data.model.VocabEntry
 
 object ConfusableWordsData {
 
-    val PAIRS: List<ConfusablePair> = listOf(
+    val PAIRS: List<ConfusablePair> by lazy { BASE_PAIRS + ExtraPracticeData.CONFUSABLE_PAIRS }
+
+    private val BASE_PAIRS: List<ConfusablePair> = listOf(
         ConfusablePair(
             id = "cp_discrete_discreet",
             wordA = "discrete",
@@ -314,12 +316,12 @@ object ConfusableWordsData {
                 ?: entry
 
             val wordALabel = if (entry.headword.equals(partner.headword, ignoreCase = true)) {
-                "${entry.headword} (#${entry.entryNumber})"
+                "${entry.headword} (${entry.listLabel})"
             } else {
                 entry.headword
             }
             val wordBLabel = if (entry.headword.equals(partner.headword, ignoreCase = true)) {
-                "${partner.headword} (#${partner.entryNumber})"
+                "${partner.headword} (${partner.listLabel})"
             } else {
                 partner.headword
             }
@@ -328,8 +330,8 @@ object ConfusableWordsData {
             val posB = partner.grammaticalLabels.joinToString("/").ifBlank { "term" }
 
             val distinctionText = buildString {
-                append("Entry #${entry.entryNumber} (p.${entry.sourcePage}) '$wordALabel' [$posA] means \"${entry.primaryMeaning}\". ")
-                append("In contrast, Entry #${partner.entryNumber} (p.${partner.sourcePage}) '$wordBLabel' [$posB] means \"${partner.primaryMeaning}\".")
+                append("Entry ${entry.listLabel} (p.${entry.sourcePage}) '$wordALabel' [$posA] means \"${entry.primaryMeaning}\". ")
+                append("In contrast, Entry ${partner.listLabel} (p.${partner.sourcePage}) '$wordBLabel' [$posB] means \"${partner.primaryMeaning}\".")
                 if (entry.hasAnomaly && entry.anomalyNotes.isNotBlank()) {
                     append(" • Source Audit Note: ${entry.anomalyNotes}")
                 }
@@ -361,7 +363,7 @@ object ConfusableWordsData {
                 exampleB = exB,
                 exerciseSentence = blankedSentence,
                 correctWord = wordALabel,
-                explanation = "'$wordALabel' (#${entry.entryNumber}, Page ${entry.sourcePage}) means \"${entry.primaryMeaning}\", whereas '$wordBLabel' (#${partner.entryNumber}) means \"${partner.primaryMeaning}\"."
+                explanation = "'$wordALabel' (${entry.listLabel}, Page ${entry.sourcePage}) means \"${entry.primaryMeaning}\", whereas '$wordBLabel' (${partner.listLabel}) means \"${partner.primaryMeaning}\"."
             )
         }
     }

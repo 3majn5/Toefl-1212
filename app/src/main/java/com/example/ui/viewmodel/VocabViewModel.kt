@@ -3,6 +3,7 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.model.CollectionScope
 import com.example.data.model.FsrsRating
 import com.example.data.model.FsrsSchedulePreview
 import com.example.data.model.LearningDirection
@@ -14,6 +15,7 @@ import com.example.data.model.StudyStats
 import com.example.data.model.StudyStatus
 import com.example.data.model.UserVerificationStatus
 import com.example.data.model.VocabEntry
+import com.example.data.model.WordCollection
 import com.example.data.model.WorkloadForecast
 import com.example.data.model.WritingEvaluationResult
 import com.example.data.repository.VocabRepository
@@ -100,8 +102,22 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     private val _workloadForecast = MutableStateFlow<List<WorkloadForecast>>(emptyList())
     val workloadForecast: StateFlow<List<WorkloadForecast>> = _workloadForecast.asStateFlow()
 
-    val allEntries: StateFlow<List<VocabEntry>> = repository.getAllEntries()
+    private val _collectionScope = MutableStateFlow(repository.getCollectionScope())
+    /** Which word list(s) the whole app is currently studying. */
+    val collectionScope: StateFlow<CollectionScope> = _collectionScope.asStateFlow()
+
+    /** Every entry from every collection, regardless of the active scope. */
+    val everyEntry: StateFlow<List<VocabEntry>> = repository.getAllEntries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Entries in the active collection scope — what every study screen works with. */
+    val allEntries: StateFlow<List<VocabEntry>> = combine(everyEntry, _collectionScope) { entries, scope ->
+        entries.filter { scope.includes(it) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val collectionCounts: StateFlow<Map<CollectionScope, Int>> = everyEntry.map { entries ->
+        CollectionScope.values().associateWith { scope -> entries.count { scope.includes(it) } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val displayEntries: StateFlow<List<VocabEntry>> = combine(
         allEntries,
@@ -156,7 +172,9 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val pagesAudit: List<PageAudit>
-        get() = repository.getPagesAudit()
+        get() = repository.getPagesAudit(
+            if (_collectionScope.value == CollectionScope.AWL) WordCollection.AWL else WordCollection.TOEFL
+        )
 
     init {
         viewModelScope.launch {
@@ -174,6 +192,18 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun refreshForecast() {
         val forecast = repository.getWorkloadForecast(7)
         _workloadForecast.value = forecast
+    }
+
+    fun setCollectionScope(scope: CollectionScope) {
+        if (_collectionScope.value == scope) return
+        _collectionScope.value = scope
+        _selectedPage.value = 1
+        repository.saveCollectionScope(scope)
+    }
+
+    private suspend fun dueInScope(now: Long): List<VocabEntry> {
+        val scope = _collectionScope.value
+        return repository.getDueEntries(now).filter { scope.includes(it) }
     }
 
     fun setSearchQuery(query: String) {
@@ -317,8 +347,8 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     fun startDailySession() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            val due = repository.getDueEntries(now)
-            val newWords = repository.getNewEntries(_studyPlan.value.dailyNewWords)
+            val due = dueInScope(now)
+            val newWords = repository.getNewEntries(_studyPlan.value.dailyNewWords, _collectionScope.value)
             val sessionPool = (due + newWords).distinctBy { it.entryNumber }
 
             if (sessionPool.isNotEmpty()) {
@@ -333,7 +363,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     fun startReviewAllSession() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            val due = repository.getDueEntries(now)
+            val due = dueInScope(now)
             if (due.isNotEmpty()) {
                 _sessionPhase.value = SessionPhase.FsrsFlashcards(0, due)
             } else {
@@ -347,7 +377,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     fun startShortSession(count: Int = 5) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            val due = repository.getDueEntries(now).take(count)
+            val due = dueInScope(now).take(count)
             val pool = if (due.isNotEmpty()) due else allEntries.value.shuffled().take(count)
             _sessionPhase.value = SessionPhase.FsrsFlashcards(0, pool)
         }
@@ -400,8 +430,8 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         if (current is SessionPhase.Quiz) {
             current.userAnswers[current.currentIndex] = isCorrect
             viewModelScope.launch {
-                val target = allEntries.value.find { it.headword.equals(question.targetWord, ignoreCase = true) || it.primaryMeaning.equals(question.targetWord, ignoreCase = true) }
-                    ?: allEntries.value.find { it.entryNumber.toString() == question.id }
+                val target = everyEntry.value.find { it.entryNumber == question.entryNumber }
+                    ?: allEntries.value.find { it.headword.equals(question.targetWord, ignoreCase = true) }
                 if (target != null) {
                     repository.recordStudyResult(target, isCorrect)
                     repository.recordSkillPractice(target, question.direction, isCorrect)

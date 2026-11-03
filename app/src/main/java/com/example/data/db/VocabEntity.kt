@@ -68,7 +68,10 @@ data class VocabEntity(
     val grammarPatterns: List<String> = emptyList(),
     val commonMistakes: String = "",
     val registerFormality: String = "",
-    val antonyms: List<String> = emptyList()
+    val antonyms: List<String> = emptyList(),
+
+    // Source collection ("TOEFL" or "AWL")
+    val collection: String = "TOEFL"
 ) {
     fun toDomain(): VocabEntry {
         return VocabEntry(
@@ -126,7 +129,8 @@ data class VocabEntity(
             grammarPatterns = grammarPatterns,
             commonMistakes = commonMistakes,
             registerFormality = registerFormality,
-            antonyms = antonyms
+            antonyms = antonyms,
+            collection = collection
         )
     }
 
@@ -187,7 +191,8 @@ data class VocabEntity(
                 grammarPatterns = entry.grammarPatterns,
                 commonMistakes = entry.commonMistakes,
                 registerFormality = entry.registerFormality,
-                antonyms = entry.antonyms
+                antonyms = entry.antonyms,
+                collection = entry.collection
             )
         }
     }

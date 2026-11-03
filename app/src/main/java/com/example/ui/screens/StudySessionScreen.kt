@@ -1,8 +1,25 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.runtime.key
+import com.example.ui.components.AnimatedEntrance
+import com.example.ui.components.AnimatedProgressBar
+import com.example.ui.components.answerFeedback
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -285,7 +302,7 @@ private fun FsrsFlashcardView(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Page ${entry.sourcePage} • Word #${entry.entryNumber}",
+                text = "Page ${entry.sourcePage} • Word ${entry.listLabel}",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold,
                 color = PrimaryBlue
@@ -340,7 +357,7 @@ private fun FsrsFlashcardView(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     IconButton(
-                        onClick = { onSpeak(entry.headword) },
+                        onClick = { onSpeak(entry.answerForm) },
                         modifier = Modifier
                             .size(54.dp)
                             .clip(CircleShape)
@@ -634,7 +651,7 @@ private fun IntroCardView(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Page ${entry.sourcePage} • #${entry.entryNumber}",
+                text = "Page ${entry.sourcePage} • ${entry.listLabel}",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold,
                 color = PrimaryBlue
@@ -687,7 +704,7 @@ private fun IntroCardView(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     IconButton(
-                        onClick = { onSpeak(entry.headword) },
+                        onClick = { onSpeak(entry.answerForm) },
                         modifier = Modifier
                             .size(52.dp)
                             .clip(CircleShape)
@@ -917,12 +934,9 @@ private fun QuizView(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        LinearProgressIndicator(
-            progress = { (phase.currentIndex + 1) / phase.questions.size.toFloat() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp)),
+        AnimatedProgressBar(
+            progress = (phase.currentIndex + 1) / phase.questions.size.toFloat(),
+            modifier = Modifier.fillMaxWidth(),
             color = PrimaryBlue
         )
 
@@ -956,10 +970,12 @@ private fun QuizView(
 
         Spacer(modifier = Modifier.height(18.dp))
 
+        key(phase.currentIndex) {
+        AnimatedEntrance {
         Card(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                containerColor = MaterialTheme.colorScheme.primaryContainer
             ),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -999,9 +1015,12 @@ private fun QuizView(
                 Text(
                     text = question.prompt,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
+        }
+        }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -1016,6 +1035,10 @@ private fun QuizView(
                     enabled = !hasAnswered,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .answerFeedback(
+                            correctTrigger = if (hasAnswered && isCorrectAnswer) 1 else 0,
+                            wrongTrigger = if (hasAnswered && !isCorrectAnswer) 1 else 0
+                        )
                         .testTag("spelling_input")
                 )
 
@@ -1042,11 +1065,15 @@ private fun QuizView(
                 OutlinedTextField(
                     value = productionInput,
                     onValueChange = { if (!hasAnswered) productionInput = it },
-                    label = { Text("Write your sentence using '${question.targetWord}'") },
+                    label = { Text("Write your sentence using '${question.correctAnswer}'") },
                     minLines = 3,
                     enabled = !hasAnswered,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .answerFeedback(
+                            correctTrigger = if (hasAnswered && isCorrectAnswer) 1 else 0,
+                            wrongTrigger = if (hasAnswered && !isCorrectAnswer) 1 else 0
+                        )
                         .testTag("production_input")
                 )
 
@@ -1055,7 +1082,7 @@ private fun QuizView(
                     Button(
                         onClick = {
                             hasAnswered = true
-                            isCorrectAnswer = productionInput.lowercase().contains(question.targetWord.lowercase())
+                            isCorrectAnswer = productionInput.lowercase().contains(question.correctAnswer.lowercase())
                         },
                         enabled = productionInput.isNotBlank(),
                         shape = RoundedCornerShape(12.dp),
@@ -1075,7 +1102,7 @@ private fun QuizView(
                         val isSelected = selectedOption == option
                         val isTarget = option.equals(question.correctAnswer, ignoreCase = true)
 
-                        val (cardColor, borderColor) = when {
+                        val (targetCardColor, borderColor) = when {
                             !hasAnswered -> if (isSelected) {
                                 Pair(PrimaryBlue.copy(alpha = 0.15f), PrimaryBlue)
                             } else {
@@ -1085,6 +1112,7 @@ private fun QuizView(
                             isSelected && !isCorrectAnswer -> Pair(ErrorRed.copy(alpha = 0.2f), ErrorRed)
                             else -> Pair(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), Color.Transparent)
                         }
+                        val cardColor by animateColorAsState(targetCardColor, tween(300), label = "optionColor")
 
                         Card(
                             onClick = {
@@ -1094,10 +1122,15 @@ private fun QuizView(
                                     isCorrectAnswer = option.equals(question.correctAnswer, ignoreCase = true)
                                 }
                             },
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = cardColor),
+                            border = if (borderColor != Color.Transparent) BorderStroke(2.dp, borderColor) else null,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .answerFeedback(
+                                    correctTrigger = if (hasAnswered && isTarget) 1 else 0,
+                                    wrongTrigger = if (hasAnswered && isSelected && !isCorrectAnswer) 1 else 0
+                                )
                                 .testTag("quiz_option_$index")
                         ) {
                             Row(
@@ -1136,7 +1169,10 @@ private fun QuizView(
             }
         }
 
-        AnimatedVisibility(visible = hasAnswered) {
+        AnimatedVisibility(
+            visible = hasAnswered,
+            enter = fadeIn(tween(300)) + expandVertically(tween(300)) + scaleIn(initialScale = 0.92f, animationSpec = tween(300))
+        ) {
             Column(modifier = Modifier.padding(top = 20.dp)) {
                 Card(
                     shape = RoundedCornerShape(12.dp),
@@ -1155,7 +1191,7 @@ private fun QuizView(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isCorrectAnswer) "Correct!" else "Needs Review",
+                                text = if (isCorrectAnswer) listOf("Correct!", "Great job!", "Nailed it!", "Well done!")[phase.currentIndex % 4] else "Not quite — review this one",
                                 fontWeight = FontWeight.Bold,
                                 color = if (isCorrectAnswer) SuccessGreen else ErrorRed
                             )
@@ -1316,12 +1352,48 @@ private fun CompletedView(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.CheckCircle,
-            contentDescription = "Success",
-            tint = SuccessGreen,
-            modifier = Modifier.size(72.dp)
+        // Celebration: the badge springs in, then the confetti ring gently spins
+        val badgeScale = remember { Animatable(0f) }
+        LaunchedEffect(Unit) {
+            badgeScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+        }
+        val ringRotation by rememberInfiniteTransition(label = "celebrate").animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(8000, easing = LinearEasing)),
+            label = "ringRotation"
         )
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
+            val confetti = listOf(PrimaryBlue, AccentGold, SuccessGreen, ErrorRed, SecondaryIndigo, WarningOrange)
+            Box(modifier = Modifier.size(140.dp).graphicsLayer { rotationZ = ringRotation; scaleX = badgeScale.value; scaleY = badgeScale.value }) {
+                confetti.forEachIndexed { i, c ->
+                    val angle = Math.toRadians(i * 60.0)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .offset(x = (58 * kotlin.math.cos(angle)).dp, y = (58 * kotlin.math.sin(angle)).dp)
+                            .size(if (i % 2 == 0) 12.dp else 9.dp)
+                            .clip(CircleShape)
+                            .background(c)
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .size(92.dp)
+                    .graphicsLayer { scaleX = badgeScale.value; scaleY = badgeScale.value }
+                    .clip(CircleShape)
+                    .background(SuccessGreen.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Success",
+                    tint = SuccessGreen,
+                    modifier = Modifier.size(64.dp)
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 

@@ -8,7 +8,7 @@ object SentenceCoachAnalyzer {
     fun evaluate(sentence: String, entry: VocabEntry): WritingEvaluationResult {
         val trimmed = sentence.trim()
         val lower = trimmed.lowercase()
-        val targetLower = entry.headword.trim().lowercase()
+        val targetLower = entry.answerForm.lowercase()
 
         // Check if headword or root lemma is present
         val rootLemma = targetLower.removeSuffix("e").removeSuffix("ed").removeSuffix("ing").removeSuffix("s")

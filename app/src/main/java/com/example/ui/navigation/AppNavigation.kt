@@ -1,5 +1,10 @@
 package com.example.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,7 +53,23 @@ fun AppNavigation(
     NavHost(
         navController = navController,
         startDestination = Destinations.DASHBOARD,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = {
+            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(380, easing = FastOutSlowInEasing)) +
+                fadeIn(tween(380))
+        },
+        exitTransition = {
+            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(380, easing = FastOutSlowInEasing)) { it / 4 } +
+                fadeOut(tween(250))
+        },
+        popEnterTransition = {
+            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(380, easing = FastOutSlowInEasing)) { it / 4 } +
+                fadeIn(tween(380))
+        },
+        popExitTransition = {
+            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(380, easing = FastOutSlowInEasing)) +
+                fadeOut(tween(250))
+        }
     ) {
         composable(Destinations.DASHBOARD) {
             DashboardScreen(

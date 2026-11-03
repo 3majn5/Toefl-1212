@@ -8,6 +8,28 @@ enum class UserVerificationStatus {
     NEEDS_EXPLANATION
 }
 
+enum class WordCollection(val key: String, val displayName: String, val shortName: String) {
+    TOEFL("TOEFL", "TOEFL 1212", "TOEFL"),
+    AWL("AWL", "Academic Word List", "AWL");
+
+    companion object {
+        fun fromKey(key: String?): WordCollection = values().firstOrNull { it.key == key } ?: TOEFL
+    }
+}
+
+/** Which collection(s) the learner is currently studying. */
+enum class CollectionScope(val displayName: String, val shortName: String) {
+    TOEFL("TOEFL 1212", "TOEFL"),
+    AWL("AWL 570", "AWL"),
+    ALL("Both Lists", "Both");
+
+    fun includes(entry: VocabEntry): Boolean = when (this) {
+        TOEFL -> entry.collection == WordCollection.TOEFL.key
+        AWL -> entry.collection == WordCollection.AWL.key
+        ALL -> true
+    }
+}
+
 enum class StudyStatus {
     NEW,
     LEARNING,
@@ -108,8 +130,35 @@ data class VocabEntry(
     val grammarPatterns: List<String> = emptyList(),
     val commonMistakes: String = "",
     val registerFormality: String = "",
-    val antonyms: List<String> = emptyList()
+    val antonyms: List<String> = emptyList(),
+
+    // Source collection ("TOEFL" or "AWL")
+    val collection: String = WordCollection.TOEFL.key
 ) {
+    val isAwl: Boolean
+        get() = collection == WordCollection.AWL.key
+
+    /** Number within the word's own list (AWL entries are stored with a 2000 offset). */
+    val listNumber: Int
+        get() = if (isAwl) entryNumber - AWL_NUMBER_OFFSET else entryNumber
+
+    /** Human-readable reference such as "#57" or "AWL #12". */
+    val listLabel: String
+        get() = if (isAwl) "AWL #$listNumber" else "#$entryNumber"
+
+    /** Headword without source annotations like "(verb)" or "[pl.]" — the form learners type and read. */
+    val answerForm: String
+        get() = headword.replace(Regex("\\(.*?\\)|\\[.*?\\]"), "").trim().ifBlank { headword.trim() }
+
+    /** Example sentences that contain the exact answer form, best first. */
+    val usableExamples: List<String>
+        get() {
+            val regex = Regex("(?<![A-Za-z])${Regex.escape(answerForm)}(?![A-Za-z])", RegexOption.IGNORE_CASE)
+            return (listOf(exampleSentence) + dictionaryExamples)
+                .filter { it.isNotBlank() && regex.containsMatchIn(it) }
+                .distinct()
+        }
+
     val totalAttempts: Int
         get() = recognitionAttempts + recallAttempts + spellingAttempts +
                 contextAttempts + synonymAttempts + productionAttempts + listeningAttempts
@@ -130,6 +179,8 @@ data class VocabEntry(
     val isMasteredByRecall: Boolean
         get() = fsrsStability >= 14f && multiSkillAccuracy >= 0.85f && repetitionCount >= 3
 }
+
+const val AWL_NUMBER_OFFSET = 2000
 
 data class SkillMasterySummary(
     val direction: LearningDirection,
@@ -177,7 +228,8 @@ data class QuizQuestion(
     val correctAnswer: String,
     val explanation: String,
     val sourceDefinition: String,
-    val grammaticalLabel: String? = null
+    val grammaticalLabel: String? = null,
+    val entryNumber: Int = 0
 )
 
 data class DictionaryResult(

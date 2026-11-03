@@ -113,7 +113,7 @@ fun WordDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Entry #${entry.entryNumber}",
+                        text = "Entry ${entry.listLabel}",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -173,14 +173,14 @@ fun WordDetailScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "#${entry.entryNumber}",
+                                    text = "${entry.listLabel}",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = PrimaryBlue
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Source Page ${entry.sourcePage} / 46",
+                                    text = "Source Page ${entry.sourcePage} / ${if (entry.isAwl) 3 else 46}",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -341,7 +341,7 @@ fun WordDetailScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Original PDF Source (Page ${entry.sourcePage} / 46)",
+                            text = "Original PDF Source (Page ${entry.sourcePage} / ${if (entry.isAwl) 3 else 46})",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = PrimaryBlue
@@ -867,7 +867,7 @@ fun WordDetailScreen(
             title = { Text("Update Entry Verification") },
             text = {
                 Column {
-                    Text("Audit Status for #${entry.entryNumber} '${entry.headword}':", fontSize = 13.sp)
+                    Text("Audit Status for ${entry.listLabel} '${entry.headword}':", fontSize = 13.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     UserVerificationStatus.values().forEach { st ->
                         Row(

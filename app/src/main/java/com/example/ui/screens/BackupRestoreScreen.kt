@@ -196,7 +196,7 @@ fun BackupRestoreScreen(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Text(
-                            text = "Export your entire learning database including all 1,212 words, FSRS stability/difficulty, review history, and notes.",
+                            text = "Export your entire learning database including every word in both lists, FSRS stability/difficulty, review history, and notes.",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -420,7 +420,7 @@ fun BackupRestoreScreen(
             title = { Text("Confirm Database Restore") },
             text = {
                 Text(
-                    "Restoring from backup will merge learning history, FSRS parameters, bookmarks, and notes into your 1,212 vocabulary entries. Continue?",
+                    "Restoring from backup will merge learning history, FSRS parameters, bookmarks, and notes into your vocabulary entries. Continue?",
                     fontSize = 14.sp
                 )
             },

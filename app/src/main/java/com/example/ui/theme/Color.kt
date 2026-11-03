@@ -1,29 +1,77 @@
 package com.example.ui.theme
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-val PrimaryBlue = Color(0xFF2563EB)
-val PrimaryBlueDark = Color(0xFF1D4ED8)
-val PrimaryBlueLight = Color(0xFF60A5FA)
-val AccentGold = Color(0xFFD97706)
-val AccentGoldLight = Color(0xFFFBBF24)
-val SuccessGreen = Color(0xFF059669)
-val SuccessGreenLight = Color(0xFF34D399)
-val WarningOrange = Color(0xFFEA580C)
-val ErrorRed = Color(0xFFDC2626)
-val SecondaryIndigo = Color(0xFF4F46E5)
+// ── Learning palette ────────────────────────────────────────────────
+// Indigo keeps attention calm and focused, coral adds warmth and motivation,
+// mint signals growth and success. Backgrounds are warm and low-glare for long sessions.
+val BrandIndigo = Color(0xFF5B5BD6)
+val BrandIndigoDark = Color(0xFF4343B8)
+val BrandIndigoLight = Color(0xFF9B9CF2)
+val BrandIndigoSoft = Color(0xFFECECFD)
 
-val Navy900 = Color(0xFF0F172A)
-val Navy800 = Color(0xFF1E293B)
-val Navy700 = Color(0xFF334155)
-val Navy600 = Color(0xFF475569)
+val WarmCoral = Color(0xFFFF7A59)
+val WarmCoralLight = Color(0xFFFFB199)
+val WarmCoralSoft = Color(0xFFFFEDE7)
 
-val SlateLightBg = Color(0xFFF8FAFC)
-val SlateLightCard = Color(0xFFFFFFFF)
-val SlateDarkBg = Color(0xFF0B1120)
-val SlateDarkCard = Color(0xFF1E293B)
+val FreshMint = Color(0xFF14B88F)
+val FreshMintLight = Color(0xFF5EE0BC)
+val FreshMintSoft = Color(0xFFDDF7EF)
 
-val TextPrimaryLight = Color(0xFF0F172A)
-val TextSecondaryLight = Color(0xFF64748B)
-val TextPrimaryDark = Color(0xFFF1F5F9)
-val TextSecondaryDark = Color(0xFF94A3B8)
+val SunnyAmber = Color(0xFFF5A524)
+val SunnyAmberSoft = Color(0xFFFFF3D6)
+val SoftRose = Color(0xFFE5484D)
+val SkyBlue = Color(0xFF3E9BF0)
+val Lavender = Color(0xFF9D7BF0)
+
+// Collection identity colors
+val ToeflColor = BrandIndigo
+val AwlColor = FreshMint
+
+// Surfaces
+val CreamBackground = Color(0xFFFAF8F5)
+val CardWhite = Color(0xFFFFFFFF)
+val LavenderMist = Color(0xFFF2F1FA)
+val InkText = Color(0xFF1F1D36)
+val MutedText = Color(0xFF6B6984)
+val SoftOutline = Color(0xFFDCDAEA)
+
+val NightBackground = Color(0xFF14131F)
+val NightCard = Color(0xFF1F1D2E)
+val NightCardRaised = Color(0xFF2A2840)
+val NightText = Color(0xFFF2F1FA)
+val NightMuted = Color(0xFFA9A7C2)
+val NightOutline = Color(0xFF3D3A56)
+
+// Gradients used by hero cards and buttons
+val HeroGradient = Brush.linearGradient(listOf(BrandIndigo, Lavender))
+val MotivationGradient = Brush.linearGradient(listOf(WarmCoral, SunnyAmber))
+val GrowthGradient = Brush.linearGradient(listOf(FreshMint, SkyBlue))
+
+// ── Legacy names kept so existing screens pick up the new palette ──
+val PrimaryBlue = BrandIndigo
+val PrimaryBlueDark = BrandIndigoDark
+val PrimaryBlueLight = BrandIndigoLight
+val AccentGold = SunnyAmber
+val AccentGoldLight = Color(0xFFFFC95C)
+val SuccessGreen = FreshMint
+val SuccessGreenLight = FreshMintLight
+val WarningOrange = WarmCoral
+val ErrorRed = SoftRose
+val SecondaryIndigo = Lavender
+
+val Navy900 = InkText
+val Navy800 = NightCard
+val Navy700 = NightCardRaised
+val Navy600 = NightOutline
+
+val SlateLightBg = CreamBackground
+val SlateLightCard = CardWhite
+val SlateDarkBg = NightBackground
+val SlateDarkCard = NightCard
+
+val TextPrimaryLight = InkText
+val TextSecondaryLight = MutedText
+val TextPrimaryDark = NightText
+val TextSecondaryDark = NightMuted

@@ -696,14 +696,14 @@ object AcademicVocabularyEnricher {
             isAdj -> patterns.add("Attributive/Predicative Adjective: [${entry.headword} + Noun] or [be/become + ${entry.headword}]")
             isNoun -> patterns.add("Academic Noun: [Determiner/Adjective + ${entry.headword}]")
             isAdv -> patterns.add("Adverbial Modifier: modifies verbs, adjectives, or entire clauses")
-            else -> patterns.add("Core TOEFL Expression (#${entry.entryNumber}, Page ${entry.sourcePage}): used in formal academic reading & lectures")
+            else -> patterns.add("Core TOEFL Expression (${entry.listLabel}, Page ${entry.sourcePage}): used in formal academic reading & lectures")
         }
         return patterns
     }
 
     private fun deriveLearnerTrap(entry: VocabEntry, key: String, posLabels: List<String>): String {
         if (entry.hasAnomaly && entry.anomalyNotes.isNotBlank()) {
-            return "Source Audit Note (#${entry.entryNumber}): ${entry.anomalyNotes}"
+            return "Source Audit Note (${entry.listLabel}): ${entry.anomalyNotes}"
         }
         if (entry.hasDuplicateHeadword && entry.duplicateWithNumbers.isNotEmpty()) {
             return "Polysemy Alert: '${entry.headword}' also appears at entry ${entry.duplicateWithNumbers.joinToString { "#$it" }}. Pay close attention to contextual nuance."

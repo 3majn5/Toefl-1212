@@ -26,6 +26,7 @@
 The application preserves the exact, authentic dataset of **1,212 numbered academic words** extracted from the official 46-page list (#1 to #1212). It integrates the scientifically proven **Free Spaced Repetition Scheduler (FSRS)** algorithm, multi-modal practice labs, listening speed controls, and a writing coach to ensure high-speed retention and authentic exam transfer.
 
 ### 🌟 Key Capabilities
+- 🎓 **Academic Word List (AWL) Collection:** All 570 AWL headwords (Coxhead) with learner definitions, synonyms, and two real example sentences each. Switch between **TOEFL 1212**, **AWL 570**, or **Both** from the Dashboard or Browse screen; every lab and quiz follows the active list.
 - 📚 **Authentic 1,212 Words:** Preserves original entry numbering (#1–#1212), source page references (Pages 1–46), verbatim definitions, and all 27 documented source anomalies.
 - 🧠 **Adaptive FSRS Spaced Repetition:** Calculates memory stability ($S$), difficulty ($D$), and recall probability ($R$) with real-time interval previews on every rating button.
 - 🎯 **7-Channel Skill Mastery:** Tracks performance separately across Definition Recognition, Reverse Recall, Spelling & Typing, Context Gap-Fill, Synonym Discrimination, Production Writing, and Listening.

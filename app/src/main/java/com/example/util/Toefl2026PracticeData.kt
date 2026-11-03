@@ -7,7 +7,13 @@ import kotlin.math.abs
 
 object Toefl2026PracticeData {
 
-    val CLOZE_EXERCISES: List<CompleteWordsExercise> = listOf(
+    val CLOZE_EXERCISES: List<CompleteWordsExercise> by lazy { BASE_CLOZE_EXERCISES + ExtraPracticeData.CLOZE_EXERCISES }
+
+    val READING_QUESTIONS: List<AcademicReadingQuestion> by lazy { BASE_READING_QUESTIONS + ExtraPracticeData.READING_QUESTIONS }
+
+    val DISCUSSION_WRITING_PROMPTS: List<String> by lazy { BASE_DISCUSSION_WRITING_PROMPTS + ExtraPracticeData.DISCUSSION_WRITING_PROMPTS }
+
+    private val BASE_CLOZE_EXERCISES: List<CompleteWordsExercise> = listOf(
         CompleteWordsExercise(
             id = "cloze_1",
             passageTitle = "Evolutionary Adaptation in Marine Life",
@@ -235,7 +241,7 @@ object Toefl2026PracticeData {
         )
     )
 
-    val READING_QUESTIONS: List<AcademicReadingQuestion> = listOf(
+    private val BASE_READING_QUESTIONS: List<AcademicReadingQuestion> = listOf(
         AcademicReadingQuestion(
             id = "read_1",
             passage = "Early astronomical models posited an immutable celestial sphere. However, seventeenth-century telescopic observations by Galileo and Kepler provided empirical evidence that directly contradicted geocentric assumptions, instigating a fundamental paradigm shift across natural philosophy.",
@@ -406,7 +412,7 @@ object Toefl2026PracticeData {
         )
     )
 
-    val DISCUSSION_WRITING_PROMPTS: List<String> = listOf(
+    private val BASE_DISCUSSION_WRITING_PROMPTS: List<String> = listOf(
         "Academic Discussion: Online vs In-Person University Instruction.\nYour professor asks: 'Do digital learning environments enhance or diminish academic collaboration among undergraduates?' Write a short academic post (2-3 sentences) utilizing the target word naturally.",
         "Academic Discussion: Environmental Resource Allocation.\nYour professor asks: 'How should municipalities prioritize investments in renewable energy infrastructure versus public healthcare?' Express your viewpoint integrating the target word.",
         "Academic Discussion: Artificial Intelligence in Higher Education.\nYour professor asks: 'Does automated AI assessment support or undermine independent critical thinking?' Formulate an academic argument using the target word.",
@@ -427,17 +433,16 @@ object Toefl2026PracticeData {
      */
     fun buildClozeForEntry(entry: VocabEntry): CompleteWordsExercise {
         val enriched = AcademicVocabularyEnricher.enrich(entry)
-        val cleanWord = entry.headword.trim()
+        val cleanWord = entry.answerForm
         val obscured = obscureWordForToefl2026(cleanWord)
 
-        val baseSentence = when {
-            entry.exampleSentence.isNotBlank() && containsWholeWord(entry.exampleSentence, cleanWord) ->
-                replaceWordWithObscured(entry.exampleSentence, cleanWord, obscured)
-            entry.dictionaryExamples.any { containsWholeWord(it, cleanWord) } -> {
-                val ex = entry.dictionaryExamples.first { containsWholeWord(it, cleanWord) }
-                replaceWordWithObscured(ex, cleanWord, obscured)
-            }
-            else -> synthesizeClozePassage(enriched, obscured)
+        // Alternate between the word's real example sentences so repeat visits feel fresh
+        val examples = entry.usableExamples
+        val baseSentence = if (examples.isNotEmpty()) {
+            val chosen = examples[(System.currentTimeMillis() / 60_000L % examples.size).toInt()]
+            replaceWordWithObscured(chosen, cleanWord, obscured)
+        } else {
+            synthesizeClozePassage(enriched, obscured)
         }
 
         val posLabel = entry.grammaticalLabels.joinToString(", ").ifBlank { "Academic term" }
@@ -446,14 +451,14 @@ object Toefl2026PracticeData {
 
         return CompleteWordsExercise(
             id = "cloze_entry_${entry.entryNumber}",
-            passageTitle = "Entry #${entry.entryNumber} (Page ${entry.sourcePage}) • ${posLabel.uppercase()}",
+            passageTitle = "Entry ${entry.listLabel} (Page ${entry.sourcePage}) • ${posLabel.uppercase()}",
             textWithBlanks = baseSentence,
             targetWord = cleanWord,
             obscuredWord = obscured,
             hint = "[$posLabel] ${entry.primaryMeaning}" +
                     if (collocationTip.isNotBlank()) " • Collocations: $collocationTip" else "",
             explanation = buildString {
-                append("'${cleanWord}' (#${entry.entryNumber}, PDF p.${entry.sourcePage}) means \"${entry.primaryMeaning}\". ")
+                append("'${cleanWord}' (${entry.listLabel}, PDF p.${entry.sourcePage}) means \"${entry.primaryMeaning}\". ")
                 if (grammarTip.isNotBlank()) append("Grammar pattern: $grammarTip. ")
                 if (enriched.commonMistakes.isNotBlank()) append("Note: ${enriched.commonMistakes}")
             }
@@ -470,7 +475,7 @@ object Toefl2026PracticeData {
         allEntries: List<VocabEntry>
     ): AcademicReadingQuestion {
         val enriched = AcademicVocabularyEnricher.enrich(entry)
-        val cleanWord = entry.headword.trim()
+        val cleanWord = entry.answerForm
         val passage = buildAcademicPassageForReading(enriched)
 
         val primaryPos = entry.grammaticalLabels.firstOrNull()?.lowercase()
@@ -532,7 +537,7 @@ object Toefl2026PracticeData {
         return AcademicReadingQuestion(
             id = "read_entry_${entry.entryNumber}",
             passage = passage,
-            question = "In the passage, the word '${cleanWord}' (Entry #${entry.entryNumber}, Page ${entry.sourcePage}) is closest in meaning to:",
+            question = "In the passage, the word '${cleanWord}' (Entry ${entry.listLabel}, Page ${entry.sourcePage}) is closest in meaning to:",
             targetWord = cleanWord,
             options = options,
             correctIndex = correctSlot,
@@ -550,7 +555,7 @@ object Toefl2026PracticeData {
         val pattern = enriched.grammarPatterns.firstOrNull() ?: ""
         return buildString {
             append(basePrompt)
-            append("\n\nTarget Word: #${entry.entryNumber} '${entry.headword}' (PDF Page ${entry.sourcePage})")
+            append("\n\nTarget Word: ${entry.listLabel} '${entry.answerForm}' (PDF Page ${entry.sourcePage})")
             append("\nMeaning: ${entry.primaryMeaning}")
             if (collocations.isNotBlank()) append("\nSuggested Collocations: $collocations")
             if (pattern.isNotBlank()) append("\nSyntax Pattern: $pattern")
@@ -569,13 +574,8 @@ object Toefl2026PracticeData {
         return trimmed.substring(0, prefixLen) + "_".repeat(hiddenCount) + trimmed.takeLast(suffixLen)
     }
 
-    private fun containsWholeWord(sentence: String, word: String): Boolean {
-        val regex = Regex("\\b${Regex.escape(word)}\\b", RegexOption.IGNORE_CASE)
-        return regex.containsMatchIn(sentence)
-    }
-
     private fun replaceWordWithObscured(sentence: String, word: String, obscured: String): String {
-        val regex = Regex("\\b${Regex.escape(word)}\\b", RegexOption.IGNORE_CASE)
+        val regex = Regex("(?<![A-Za-z])${Regex.escape(word)}(?![A-Za-z])", RegexOption.IGNORE_CASE)
         return regex.replaceFirst(sentence, obscured)
     }
 
@@ -594,17 +594,13 @@ object Toefl2026PracticeData {
     }
 
     private fun buildAcademicPassageForReading(entry: VocabEntry): String {
-        val coreSentence = when {
-            entry.exampleSentence.isNotBlank() -> entry.exampleSentence
-            entry.dictionaryExamples.isNotEmpty() -> entry.dictionaryExamples.first()
-            else -> "In longitudinal university studies, researchers observed how ${entry.headword} (${entry.primaryMeaning}) functions within complex analytical systems."
+        val examples = entry.usableExamples
+        return when {
+            examples.size >= 2 -> examples.take(2).joinToString(" ")
+            examples.size == 1 -> examples.first() +
+                " Understanding the precise meaning of '${entry.answerForm}' is essential for interpreting the passage."
+            else -> "In university lectures, researchers often use the expression '${entry.answerForm}' when discussing ${entry.primaryMeaning}. " +
+                "Recognizing this term helps students follow complex academic arguments."
         }
-        val contextLead = "Across contemporary university seminars and peer-reviewed monographs, scholars examine how key conceptual terms operate in empirical contexts. "
-        val contextTail = if (entry.collocations.isNotEmpty()) {
-            " Specifically, specialists frequently analyze patterns such as '${entry.collocations.first()}' when evaluating competing hypotheses."
-        } else {
-            " Consequently, understanding the precise nuance of this term is vital for interpreting advanced academic literature."
-        }
-        return contextLead + coreSentence + contextTail
     }
 }
