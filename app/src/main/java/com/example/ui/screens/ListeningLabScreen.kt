@@ -96,7 +96,10 @@ fun ListeningLabScreen(
 
     val tabs = listOf("Audio Quiz", "Dictation Spelling", "Speed & Settings")
 
-    val activePool = remember(allEntries, selectedScope, selectedPage) {
+    // Saving an answer re-emits allEntries; keying on the word set (not progress) keeps the
+    // current question from resetting after every answer
+    val wordSetKey = remember(allEntries) { allEntries.map { it.entryNumber } }
+    val activePool = remember(wordSetKey, selectedScope, selectedPage) {
         if (allEntries.isEmpty()) emptyList()
         else {
             val filtered = when (selectedScope) {
@@ -257,7 +260,7 @@ private fun AudioQuizView(
     val safeIndex = cardIndex.coerceIn(0, (currentPool.size - 1).coerceAtLeast(0))
     val current = currentPool.getOrNull(safeIndex) ?: return
 
-    val distractors = remember(current, allEntries) {
+    val distractors = remember(current.entryNumber, allEntries.size) {
         allEntries.filter { it.entryNumber != current.entryNumber }.shuffled().take(3)
     }
     val options = remember(current, distractors) {

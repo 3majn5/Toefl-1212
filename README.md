@@ -11,17 +11,20 @@
 
 ## 📥 Download
 
-[![Download APK](https://img.shields.io/badge/Download%20APK-v1.3.0-5B5BD6?style=for-the-badge&logo=android&logoColor=white)](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.0-debug.apk)
+[![Download APK](https://img.shields.io/badge/Download%20APK-v1.3.1-5B5BD6?style=for-the-badge&logo=android&logoColor=white)](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk)
 
-**[⬇️ Download TOEFL 1212 v1.3.0 for Android (APK, ~18 MB)](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.0-debug.apk)** — free, works offline, Android 7.0 or newer.
+**[⬇️ Download TOEFL 1212 v1.3.1 for Android (APK, ~18 MB)](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk)** — free, works offline, Android 7.0 or newer.
 
 **How to install:** open the downloaded file on your phone. If Android asks, allow installs from your browser or file manager ("Install unknown apps"), then tap **Install**.
 
-> **Updating from v1.0.x?** That version was signed with a different key, so Android can't install over it. First open **Backup & Export → Copy Full JSON Backup** in the old app and save the text, uninstall it, install v1.3.0, then paste the backup in **Backup & Export** to restore your progress. Updating from v1.1.0 or later works directly.
+> **Updating from v1.0.x?** That version was signed with a different key, so Android can't install over it. First open **Backup & Export → Copy Full JSON Backup** in the old app and save the text, uninstall it, install v1.3.1, then paste the backup in **Backup & Export** to restore your progress. Updating from v1.1.0 or later works directly.
 
-- 🇮🇷 **دانلود:** [نسخه ۱٫۳٫۰ اندروید را دریافت کنید](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.0-debug.apk) — فایل را روی گوشی باز کنید و در صورت درخواست، «نصب برنامه‌های ناشناس» را مجاز کنید.
-- 🇮🇳 **डाउनलोड:** [Android के लिए v1.3.0 डाउनलोड करें](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.0-debug.apk) — फ़ाइल खोलें और पूछे जाने पर "अज्ञात ऐप्स इंस्टॉल करें" की अनुमति दें।
-- 🇨🇳 **下载：** [下载 Android 版 v1.3.0](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.0-debug.apk) — 在手机上打开文件，如有提示请允许“安装未知应用”。
+- 🇮🇷 **دانلود:** [نسخه ۱٫۳٫۱ اندروید را دریافت کنید](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk) — فایل را روی گوشی باز کنید و در صورت درخواست، «نصب برنامه‌های ناشناس» را مجاز کنید.
+- 🇮🇳 **डाउनलोड:** [Android के लिए v1.3.1 डाउनलोड करें](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk) — फ़ाइल खोलें और पूछे जाने पर "अज्ञात ऐप्स इंस्टॉल करें" की अनुमति दें।
+- 🇨🇳 **下载：** [下载 Android 版 v1.3.1](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk) — 在手机上打开文件，如有提示请允许“安装未知应用”。
+
+### 🛠️ v1.3.1
+- Fixed: the Discrimination Quiz froze ("App isn't responding") on *All Words*, and quizzes jumped back to question 1 after each answer
 
 ### ✨ What's new in v1.3.0
 - 🌊 **Liquid motion**: spring physics everywhere, jelly buttons, glossy progress bars, drifting color blobs
@@ -347,7 +350,7 @@ gradle :app:assembleDebug
 - **Language:** Kotlin 100% (Coroutines & StateFlow)
 - **Persistence:** Room Database v5 with step-by-step schema migrations (progress is kept across updates)
 - **Background work:** WorkManager for daily study reminders
-- **Pre-built APK:** [`export/Toefl_1212_v1.3.0-debug.apk`](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.0-debug.apk)
+- **Pre-built APK:** [`export/Toefl_1212_v1.3.1-debug.apk`](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk)
 
 ---
 

@@ -98,7 +98,10 @@ fun ToeflPracticeScreen(
 
     val tabs = listOf("Complete the Words", "Academic Reading", "Discussion Prompts")
 
-    val scopedEntries = remember(allEntries, selectedScope, selectedPage) {
+    // Saving an answer re-emits allEntries; keying on the word set (not progress) keeps the
+    // current question from resetting after every answer
+    val wordSetKey = remember(allEntries) { allEntries.map { it.entryNumber } }
+    val scopedEntries = remember(wordSetKey, selectedScope, selectedPage) {
         when (selectedScope) {
             LabPracticeScope.ALL_1212 -> allEntries.sortedBy { it.entryNumber }
             LabPracticeScope.BY_PAGE -> allEntries.filter { it.sourcePage == selectedPage }.sortedBy { it.entryNumber }
@@ -553,7 +556,7 @@ private fun AcademicReadingTab(
     val safeIndex = qIndex.coerceIn(0, (totalCount - 1).coerceAtLeast(0))
 
     val currentEntry: VocabEntry? = if (!useCurated) scopedEntries.getOrNull(safeIndex) else null
-    val current: AcademicReadingQuestion = remember(safeIndex, currentEntry, useCurated, allEntries) {
+    val current: AcademicReadingQuestion = remember(safeIndex, currentEntry?.entryNumber, useCurated, allEntries.size) {
         if (currentEntry != null) {
             Toefl2026PracticeData.buildReadingQuestionForEntry(currentEntry, allEntries)
         } else {

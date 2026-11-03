@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.produceState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,7 +75,7 @@ import com.example.ui.viewmodel.VocabViewModel
 import com.example.util.ConfusableWordsData
 
 private enum class ConfusableScope(val label: String) {
-    CURATED("Curated Traps (24)"),
+    CURATED("Curated Traps"),
     ALL_1212("All Words"),
     BY_PAGE("By Page"),
     ANOMALIES("27 PDF Anomalies & Duplicates")
@@ -89,14 +93,25 @@ fun ConfusableWordsScreen(
     var selectedScope by remember { mutableStateOf(ConfusableScope.CURATED) }
     var selectedPage by remember { mutableIntStateOf(1) }
 
-    val activePairs = remember(allEntries, selectedScope, selectedPage) {
-        when (selectedScope) {
-            ConfusableScope.CURATED -> ConfusableWordsData.PAIRS
-            ConfusableScope.ALL_1212 -> ConfusableWordsData.build1212ContrastPairs(allEntries)
-            ConfusableScope.BY_PAGE -> ConfusableWordsData.build1212ContrastPairs(allEntries, pageFilter = selectedPage)
-            ConfusableScope.ANOMALIES -> ConfusableWordsData.build1212ContrastPairs(allEntries, anomaliesOnly = true)
+    // Answering saves progress, which re-emits allEntries. Rebuild pairs only when the set of
+    // words changes, otherwise every answer would reset the quiz to question 1.
+    val wordSetKey = remember(allEntries) { allEntries.map { it.entryNumber } }
+    val latestEntries by rememberUpdatedState(allEntries)
+    // Building pairs for every word is heavy, so do it off the main thread
+    val computedPairs by produceState<List<ConfusablePair>?>(null, wordSetKey, selectedScope, selectedPage) {
+        value = null
+        val entries = latestEntries
+        value = withContext(Dispatchers.Default) {
+            when (selectedScope) {
+                ConfusableScope.CURATED -> ConfusableWordsData.PAIRS
+                ConfusableScope.ALL_1212 -> ConfusableWordsData.build1212ContrastPairs(entries)
+                ConfusableScope.BY_PAGE -> ConfusableWordsData.build1212ContrastPairs(entries, pageFilter = selectedPage)
+                ConfusableScope.ANOMALIES -> ConfusableWordsData.build1212ContrastPairs(entries, anomaliesOnly = true)
+            }
         }
     }
+    val isBuilding = computedPairs == null
+    val activePairs = computedPairs.orEmpty()
 
     Scaffold(
         topBar = {
@@ -204,7 +219,15 @@ fun ConfusableWordsScreen(
                 }
             }
 
-            when (selectedTab) {
+            if (isBuilding) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        androidx.compose.material3.CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Finding look-alike pairs…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            } else when (selectedTab) {
                 0 -> ConfusableStudyList(pairs = activePairs, onSpeak = { viewModel.speak(it) })
                 1 -> ConfusableQuiz(
                     pairs = activePairs,
