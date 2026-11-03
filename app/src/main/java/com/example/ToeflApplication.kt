@@ -2,6 +2,7 @@ package com.example
 
 import android.app.Application
 import android.util.Log
+import com.example.util.FeedbackFx
 import com.example.util.ReminderScheduler
 
 class ToeflApplication : Application() {
@@ -13,5 +14,6 @@ class ToeflApplication : Application() {
             defaultHandler?.uncaughtException(thread, throwable)
         }
         ReminderScheduler.createChannel(this)
+        FeedbackFx.init(this)
     }
 }

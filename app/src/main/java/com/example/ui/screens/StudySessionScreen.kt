@@ -1,5 +1,10 @@
 package com.example.ui.screens
 
+import com.example.ui.components.AnimatedCounter
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.Canvas
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
@@ -10,6 +15,10 @@ import androidx.compose.runtime.key
 import com.example.ui.components.AnimatedEntrance
 import com.example.ui.components.AnimatedProgressBar
 import com.example.ui.components.answerFeedback
+import com.example.ui.components.ComboMeter
+import com.example.ui.components.ConfettiBurst
+import com.example.ui.components.LiquidBlobs
+import com.example.ui.theme.Motion
 import com.example.ui.components.TranslationLine
 import com.example.data.model.WritingEvaluationResult
 import com.example.util.SpellingChecker
@@ -182,8 +191,11 @@ fun StudySessionScreen(
                     )
                 }
                 is SessionPhase.Quiz -> {
+                    val combo by viewModel.combo.collectAsState()
                     QuizView(
                         phase = currentPhase,
+                        combo = combo,
+                        onGraded = { isCorrect, q -> viewModel.onQuizAnswerGraded(isCorrect, q) },
                         onSpeak = { viewModel.speak(it) },
                         onAnswer = { isCorrect, q ->
                             viewModel.recordQuizAnswer(isCorrect, q)
@@ -201,8 +213,10 @@ fun StudySessionScreen(
                     )
                 }
                 is SessionPhase.Completed -> {
+                    val stats by viewModel.sessionStats.collectAsState()
                     CompletedView(
                         phase = currentPhase,
+                        stats = stats,
                         onFinish = {
                             viewModel.finishSession()
                             onFinish()
@@ -277,7 +291,7 @@ private fun FsrsFlashcardView(
 
     val rotation by animateFloatAsState(
         targetValue = if (isFlipped) 180f else 0f,
-        animationSpec = tween(350),
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 180f),
         label = "card_rotation"
     )
 
@@ -632,7 +646,7 @@ private fun IntroCardView(
 
     val rotation by animateFloatAsState(
         targetValue = if (isFlipped) 180f else 0f,
-        animationSpec = tween(400),
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 180f),
         label = "card_rotation"
     )
 
@@ -922,6 +936,8 @@ private fun IntroCardView(
 @Composable
 private fun QuizView(
     phase: SessionPhase.Quiz,
+    combo: Int = 0,
+    onGraded: (Boolean, QuizQuestion) -> Unit = { _, _ -> },
     onSpeak: (String) -> Unit,
     onAnswer: (Boolean, QuizQuestion) -> Unit,
     onEvaluateProduction: (String, QuizQuestion) -> WritingEvaluationResult? = { _, _ -> null }
@@ -934,6 +950,11 @@ private fun QuizView(
     var productionInput by remember(phase.currentIndex) { mutableStateOf("") }
     var hasAnswered by remember(phase.currentIndex) { mutableStateOf(false) }
     var isCorrectAnswer by remember(phase.currentIndex) { mutableStateOf(false) }
+
+    // Reward the instant an answer is checked: immediate feedback is what makes it feel good
+    LaunchedEffect(phase.currentIndex, hasAnswered) {
+        if (hasAnswered) onGraded(isCorrectAnswer, question)
+    }
 
     LaunchedEffect(phase.currentIndex) {
         if (question.direction == LearningDirection.LISTENING) {
@@ -974,11 +995,15 @@ private fun QuizView(
                 )
             }
 
-            Text(
-                text = "Question ${phase.currentIndex + 1} of ${phase.questions.size}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ComboMeter(combo = combo)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "${phase.currentIndex + 1} / ${phase.questions.size}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -1190,7 +1215,7 @@ private fun QuizView(
 
         AnimatedVisibility(
             visible = hasAnswered,
-            enter = fadeIn(tween(300)) + expandVertically(tween(300)) + scaleIn(initialScale = 0.92f, animationSpec = tween(300))
+            enter = fadeIn(tween(220)) + expandVertically(Motion.smooth()) + scaleIn(initialScale = 0.85f, animationSpec = Motion.liquid())
         ) {
             Column(modifier = Modifier.padding(top = 20.dp)) {
                 Card(
@@ -1210,7 +1235,11 @@ private fun QuizView(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isCorrectAnswer) listOf("Correct!", "Great job!", "Nailed it!", "Well done!")[phase.currentIndex % 4] else "Not quite — review this one",
+                                text = if (isCorrectAnswer) praiseFor(combo, phase.currentIndex) else listOf(
+                                    "Almost! Mistakes make memories stick",
+                                    "Not quite — this one will stick now",
+                                    "Good try! Check the answer below"
+                                )[phase.currentIndex % 3],
                                 fontWeight = FontWeight.Bold,
                                 color = if (isCorrectAnswer) SuccessGreen else ErrorRed
                             )
@@ -1394,148 +1423,149 @@ private fun MistakeReviewView(
 @Composable
 private fun CompletedView(
     phase: SessionPhase.Completed,
+    stats: com.example.ui.viewmodel.SessionStats,
     onFinish: () -> Unit
 ) {
-    val scorePct = if (phase.totalQuestions > 0) {
-        ((phase.correctAnswers.toFloat() / phase.totalQuestions) * 100).toInt()
-    } else 100
+    val accuracy = if (phase.totalQuestions > 0) phase.correctAnswers.toFloat() / phase.totalQuestions else 1f
+    val scorePct = (accuracy * 100).toInt()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // Celebration: the badge springs in, then the confetti ring gently spins
-        val badgeScale = remember { Animatable(0f) }
-        LaunchedEffect(Unit) {
-            badgeScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
-        }
-        val ringRotation by rememberInfiniteTransition(label = "celebrate").animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(tween(8000, easing = LinearEasing)),
-            label = "ringRotation"
-        )
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
-            val confetti = listOf(PrimaryBlue, AccentGold, SuccessGreen, ErrorRed, SecondaryIndigo, WarningOrange)
-            Box(modifier = Modifier.size(140.dp).graphicsLayer { rotationZ = ringRotation; scaleX = badgeScale.value; scaleY = badgeScale.value }) {
-                confetti.forEachIndexed { i, c ->
-                    val angle = Math.toRadians(i * 60.0)
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .offset(x = (58 * kotlin.math.cos(angle)).dp, y = (58 * kotlin.math.sin(angle)).dp)
-                            .size(if (i % 2 == 0) 12.dp else 9.dp)
-                            .clip(CircleShape)
-                            .background(c)
+    // Staged reveal: trophy springs in, then the ring fills and the XP counts up
+    val trophyScale = remember { Animatable(0f) }
+    var revealed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        trophyScale.animateTo(1f, Motion.jelly())
+        revealed = true
+    }
+    val ring by animateFloatAsState(
+        targetValue = if (revealed) accuracy else 0f,
+        animationSpec = spring(dampingRatio = 0.9f, stiffness = 40f),
+        label = "accuracyRing"
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(170.dp)) {
+                LiquidBlobs(
+                    colors = listOf(PrimaryBlue, SuccessGreen, AccentGold),
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = trophyScale.value.coerceIn(0f, 1f) }.clip(CircleShape),
+                    periodMillis = 7000
+                )
+                val trackColor = MaterialTheme.colorScheme.surfaceVariant
+                Canvas(modifier = Modifier.size(150.dp)) {
+                    val stroke = 12.dp.toPx()
+                    drawArc(trackColor, -90f, 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
+                    drawArc(
+                        brush = Brush.sweepGradient(listOf(SuccessGreen, PrimaryBlue, SuccessGreen)),
+                        startAngle = -90f,
+                        sweepAngle = 360f * ring,
+                        useCenter = false,
+                        style = Stroke(stroke, cap = StrokeCap.Round)
                     )
                 }
-            }
-            Box(
-                modifier = Modifier
-                    .size(92.dp)
-                    .graphicsLayer { scaleX = badgeScale.value; scaleY = badgeScale.value }
-                    .clip(CircleShape)
-                    .background(SuccessGreen.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Success",
-                    tint = SuccessGreen,
-                    modifier = Modifier.size(64.dp)
+                Text(
+                    text = if (scorePct >= 100) "🏆" else if (scorePct >= 80) "🎉" else "💪",
+                    fontSize = 56.sp,
+                    modifier = Modifier.graphicsLayer { scaleX = trophyScale.value; scaleY = trophyScale.value }
                 )
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "Session Completed!",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
+            Text(
+                text = when {
+                    scorePct >= 100 -> "Flawless session!"
+                    scorePct >= 80 -> "Session complete!"
+                    else -> "Session complete — every rep counts!"
+                },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Text(
-            text = if (phase.srsReviewed > 0) {
-                "${phase.srsReviewed} words reviewed using FSRS memory intervals. Your retention profile has been updated."
-            } else {
-                "Great work! Your practice scores and spaced repetition intervals have been updated."
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
+            Text(
+                text = if (phase.srsReviewed > 0) {
+                    "${phase.srsReviewed} words reviewed using FSRS memory intervals. Your retention profile has been updated."
+                } else {
+                    "Your practice scores and spaced repetition intervals have been updated."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SummaryTile("XP earned", if (revealed) stats.xp else 0, "", AccentGold, Modifier.weight(1f), index = 0)
+                SummaryTile("Accuracy", if (revealed) scorePct else 0, "%", SuccessGreen, Modifier.weight(1f), index = 1)
+                SummaryTile("Best combo", if (revealed) stats.bestCombo else 0, "", WarningOrange, Modifier.weight(1f), index = 2)
+            }
+            if (stats.luckyHits > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    "🍀 ${stats.luckyHits} lucky bonus${if (stats.luckyHits > 1) "es" else ""} this session",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AccentGold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Button(
+                onClick = onFinish,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
+                    .height(54.dp)
+                    .testTag("finish_session_button")
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "$scorePct%",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (scorePct >= 80) SuccessGreen else AccentGold
-                    )
-                    Text(
-                        text = "Accuracy",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .height(40.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant)
-                )
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "${phase.correctAnswers}/${phase.totalQuestions}",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = PrimaryBlue
-                    )
-                    Text(
-                        text = "Completed",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text("Back to Dashboard", fontWeight = FontWeight.Bold)
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        ConfettiBurst(trigger = if (revealed) phase else null, modifier = Modifier.fillMaxSize(), particleCount = 120)
+    }
+}
 
-        Button(
-            onClick = onFinish,
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-                .testTag("finish_session_button")
+@Composable
+private fun SummaryTile(label: String, value: Int, suffix: String, color: Color, modifier: Modifier, index: Int) {
+    AnimatedEntrance(index = index + 2, modifier = modifier) {
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f)),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Back to Dashboard", fontWeight = FontWeight.Bold)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+            ) {
+                AnimatedCounter(
+                    value = value,
+                    suffix = suffix,
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                    color = color
+                )
+                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
+}
+
+/** Varied, combo-aware praise: the bigger the streak, the bigger the cheer. */
+private fun praiseFor(combo: Int, index: Int): String = when {
+    combo >= 10 -> "Unstoppable! $combo in a row 🔥"
+    combo >= 5 -> "On fire! $combo in a row 🔥"
+    combo >= 3 -> "Hat trick! ⚡"
+    else -> listOf("Correct!", "Great job!", "Nailed it!", "Well done!", "Brilliant!", "Spot on!")[index % 6]
 }

@@ -23,6 +23,9 @@ import com.example.data.model.ThemeMode
 import com.example.data.model.TranslationLanguage
 import com.example.data.model.WeeklyProgress
 import com.example.util.FsrsScheduler
+import com.example.util.Activity
+import com.example.util.ChestReward
+import com.example.util.FeedbackFx
 import com.example.util.GamificationManager
 import com.example.util.GamificationState
 import com.example.util.ReminderScheduler
@@ -231,11 +234,87 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         _rewardEvent.value = null
     }
 
-    private fun award(xp: Int, perfectSession: Boolean = false, strongSentence: Boolean = false) {
+    private fun award(xp: Int, activity: Activity = Activity(), multiplier: Float = 1f, lucky: Boolean = false) {
         val skillsPracticed = skillSummaries.value.count { it.attempts > 0 }
-        val event = gamification.award(xp, studyStats.value, skillsPracticed, perfectSession, strongSentence)
+        val event = gamification.award(xp, studyStats.value, skillsPracticed, activity, multiplier, lucky)
         _gameState.value = gamification.state()
         _rewardEvent.value = event
+        _sessionStats.value = _sessionStats.value.let {
+            it.copy(xp = it.xp + event.xp, luckyHits = it.luckyHits + if (lucky) 1 else 0)
+        }
+    }
+
+    // ── Combos & instant feedback ───────────────────────────────
+    private val _combo = MutableStateFlow(0)
+    /** Consecutive objectively-correct answers; raises the XP multiplier. */
+    val combo: StateFlow<Int> = _combo.asStateFlow()
+
+    private val _sessionStats = MutableStateFlow(SessionStats())
+    /** XP, best combo and lucky hits since the current session started (for the summary screen). */
+    val sessionStats: StateFlow<SessionStats> = _sessionStats.asStateFlow()
+
+    private val _soundEnabled = MutableStateFlow(FeedbackFx.soundEnabled)
+    val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
+    private val _hapticsEnabled = MutableStateFlow(FeedbackFx.hapticsEnabled)
+    val hapticsEnabled: StateFlow<Boolean> = _hapticsEnabled.asStateFlow()
+
+    fun setSoundEnabled(enabled: Boolean) {
+        FeedbackFx.setSoundEnabled(enabled)
+        _soundEnabled.value = enabled
+        if (enabled) FeedbackFx.correct(3)
+    }
+
+    fun setHapticsEnabled(enabled: Boolean) {
+        FeedbackFx.setHapticsEnabled(enabled)
+        _hapticsEnabled.value = enabled
+    }
+
+    init {
+        // A fresh session starts with a clean combo and summary
+        viewModelScope.launch {
+            var wasActive = false
+            _sessionPhase.collect { phase ->
+                val active = phase !is SessionPhase.Idle && phase !is SessionPhase.Completed
+                if (active && !wasActive) {
+                    _combo.value = 0
+                    _sessionStats.value = SessionStats()
+                }
+                wasActive = active
+            }
+        }
+    }
+
+    /**
+     * Rewards an objectively graded answer the moment it is checked: sound + haptic, combo
+     * multiplier, and a small chance of a surprise double-XP "lucky" bonus. Self-rated
+     * flashcards never feed the combo or lucky rolls, so there's no incentive to rate dishonestly.
+     */
+    private fun rewardAnswer(isCorrect: Boolean, direction: LearningDirection, strongSentence: Boolean = false) {
+        val combo = if (isCorrect) _combo.value + 1 else 0
+        _combo.value = combo
+        if (combo > _sessionStats.value.bestCombo) _sessionStats.value = _sessionStats.value.copy(bestCombo = combo)
+        val lucky = isCorrect && kotlin.random.Random.nextFloat() < GamificationManager.LUCKY_CHANCE
+        if (isCorrect) FeedbackFx.correct(combo, lucky) else FeedbackFx.wrong()
+        award(
+            xp = if (isCorrect) GamificationManager.XP_CORRECT else GamificationManager.XP_WRONG,
+            activity = Activity(correctAnswer = isCorrect, combo = combo, skill = direction.name, strongSentence = strongSentence),
+            multiplier = GamificationManager.comboMultiplier(combo),
+            lucky = lucky
+        )
+    }
+
+    /** Called by the quiz as soon as an answer is checked (before "Continue"). */
+    fun onQuizAnswerGraded(isCorrect: Boolean, question: QuizQuestion) {
+        rewardAnswer(isCorrect, question.direction, strongSentence = isCorrect && question.direction == LearningDirection.PRODUCTION)
+    }
+
+    /** Opens today's mystery chest; returns what was inside, or null if it isn't available. */
+    fun openChest(): ChestReward? {
+        val (reward, event) = gamification.openChest(studyStats.value) ?: return null
+        FeedbackFx.fanfare()
+        _gameState.value = gamification.state()
+        _rewardEvent.value = event
+        return reward
     }
 
     fun setDailyXpGoal(xp: Int) {
@@ -405,7 +484,8 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
             repository.recordFsrsReview(entry, rating, "FSRS", desiredRetention)
             refreshForecast()
         }
-        award(GamificationManager.xpForRating(rating.value))
+        FeedbackFx.tap()
+        award(GamificationManager.xpForRating(rating.value), Activity(flashcard = true))
 
         val current = _sessionPhase.value
         if (current is SessionPhase.FsrsFlashcards) {
@@ -495,7 +575,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.recordSkillPractice(entry, direction, isCorrect)
         }
-        award(if (isCorrect) GamificationManager.XP_CORRECT else GamificationManager.XP_WRONG)
+        rewardAnswer(isCorrect, direction)
     }
 
     /** Scores a quiz "production" answer with the writing coach; strong sentences count as correct. */
@@ -526,10 +606,6 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         val current = _sessionPhase.value
         if (current is SessionPhase.Quiz) {
             current.userAnswers[current.currentIndex] = isCorrect
-            award(
-                xp = if (isCorrect) GamificationManager.XP_CORRECT else GamificationManager.XP_WRONG,
-                strongSentence = isCorrect && question.direction == LearningDirection.PRODUCTION
-            )
             viewModelScope.launch {
                 val target = everyEntry.value.find { it.entryNumber == question.entryNumber }
                     ?: allEntries.value.find { it.headword.equals(question.targetWord, ignoreCase = true) }
@@ -552,7 +628,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
                     val perfect = current.questions.size >= 5
                     award(
                         xp = GamificationManager.XP_SESSION_BONUS + if (perfect) GamificationManager.XP_PERFECT_BONUS else 0,
-                        perfectSession = perfect
+                        activity = Activity(perfectSession = perfect)
                     )
                     _sessionPhase.value = SessionPhase.Completed(
                         totalLearned = current.questions.size,
@@ -596,3 +672,6 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         ttsHelper.shutdown()
     }
 }
+
+/** Running totals for the current study session. */
+data class SessionStats(val xp: Int = 0, val bestCombo: Int = 0, val luckyHits: Int = 0)

@@ -63,6 +63,8 @@ fun SettingsScreen(
     val language by viewModel.translationLanguage.collectAsState()
     val reminder by viewModel.reminderSettings.collectAsState()
     val game by viewModel.gameState.collectAsState()
+    val soundOn by viewModel.soundEnabled.collectAsState()
+    val hapticsOn by viewModel.hapticsEnabled.collectAsState()
     var showTimePicker by remember { mutableStateOf(false) }
     var permissionDenied by remember { mutableStateOf(false) }
 
@@ -124,6 +126,21 @@ fun SettingsScreen(
                                     fontSize = 13.sp
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            item {
+                AnimatedEntrance(index = 2) {
+                    SettingsCard("Sound & haptics", "Chimes and vibrations when you answer, combo up, or level up") {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text("Sound effects", modifier = Modifier.weight(1f))
+                            Switch(checked = soundOn, onCheckedChange = viewModel::setSoundEnabled)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text("Vibration", modifier = Modifier.weight(1f))
+                            Switch(checked = hapticsOn, onCheckedChange = viewModel::setHapticsEnabled)
                         }
                     }
                 }

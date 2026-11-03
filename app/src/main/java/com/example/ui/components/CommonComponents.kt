@@ -1,6 +1,17 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.lerp
+import com.example.ui.theme.Motion
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -173,18 +184,26 @@ fun TtsButton(
 
 // ── Animation building blocks ───────────────────────────────────────
 
-/** Gently shrinks while pressed and springs back — makes tappable cards feel alive. */
+/**
+ * Jelly press: squashes slightly while held, then wobbles back on release.
+ * The spring keeps its velocity, so quick taps still feel elastic rather than snapping.
+ */
 fun Modifier.pressScale(interactionSource: MutableInteractionSource): Modifier = composed {
     val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.96f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
-        label = "pressScale"
+    val scaleX by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = if (pressed) spring(stiffness = Spring.StiffnessHigh) else Motion.jelly(),
+        label = "pressScaleX"
     )
-    graphicsLayer { scaleX = scale; scaleY = scale }
+    val scaleY by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = if (pressed) spring(stiffness = Spring.StiffnessHigh) else Motion.jelly(),
+        label = "pressScaleY"
+    )
+    graphicsLayer { this.scaleX = scaleX; this.scaleY = scaleY }
 }
 
-/** Clickable with a bouncy press animation. */
+/** Clickable with a jelly press animation. */
 fun Modifier.bouncyClickable(onClick: () -> Unit): Modifier = composed {
     val source = remember { MutableInteractionSource() }
     this
@@ -193,8 +212,9 @@ fun Modifier.bouncyClickable(onClick: () -> Unit): Modifier = composed {
 }
 
 /**
- * Fades and slides content up the first time it appears. [index] staggers
- * consecutive items so lists and dashboards cascade in.
+ * Floats content up into place with a soft spring the first time it appears. [index]
+ * staggers consecutive items so lists and dashboards cascade in like a wave.
+ * Content is laid out immediately (only drawn transformed), so nothing below it jumps.
  */
 @Composable
 fun AnimatedEntrance(
@@ -202,22 +222,33 @@ fun AnimatedEntrance(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    var visible by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-    AnimatedVisibility(
-        visible = visible,
-        modifier = modifier,
-        enter = fadeIn(tween(420, delayMillis = (index * 60).coerceAtMost(480))) +
-            slideInVertically(
-                animationSpec = tween(420, delayMillis = (index * 60).coerceAtMost(480), easing = FastOutSlowInEasing),
-                initialOffsetY = { it / 4 }
-            )
+    var shown by rememberSaveable { mutableStateOf(false) }
+    val progress = remember { Animatable(if (shown) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        if (!shown) {
+            delay((index * 55L).coerceAtMost(440L))
+            shown = true
+            progress.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 170f))
+        }
+    }
+    Box(
+        modifier = modifier.graphicsLayer {
+            val p = progress.value
+            alpha = p.coerceIn(0f, 1f)
+            translationY = (1f - p) * 56.dp.toPx()
+            val s = 0.94f + 0.06f * p
+            scaleX = s
+            scaleY = s
+        }
     ) {
         content()
     }
 }
 
-/** A rounded progress bar that animates smoothly to its new value. */
+/**
+ * Liquid progress bar: the fill glides to its value on a spring, carries a soft gradient,
+ * and a glossy highlight drifts across it so the bar feels alive even when idle.
+ */
 @Composable
 fun AnimatedProgressBar(
     progress: Float,
@@ -228,26 +259,54 @@ fun AnimatedProgressBar(
 ) {
     val animated by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = tween(900, easing = FastOutSlowInEasing),
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 60f),
         label = "progress"
     )
-    Box(
+    val shimmer by rememberInfiniteTransition(label = "gloss").animateFloat(
+        initialValue = -0.3f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing)),
+        label = "glossX"
+    )
+    Canvas(
         modifier = modifier
+            .fillMaxWidth()
             .height(height.dp)
-            .clip(RoundedCornerShape(50))
-            .background(trackColor)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(animated)
-                .clip(RoundedCornerShape(50))
-                .background(color)
+        val radius = CornerRadius(size.height / 2, size.height / 2)
+        drawRoundRect(color = trackColor, cornerRadius = radius)
+        val fillWidth = (size.width * animated.coerceIn(0f, 1.02f)).coerceAtLeast(if (animated > 0.001f) size.height else 0f)
+        if (fillWidth <= 0f) return@Canvas
+        drawRoundRect(
+            brush = Brush.horizontalGradient(
+                listOf(color.copy(alpha = 0.85f), color, lerp(color, Color.White, 0.18f)),
+                endX = fillWidth
+            ),
+            size = Size(fillWidth, size.height),
+            cornerRadius = radius
         )
+        // Glossy top highlight
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.22f),
+            topLeft = Offset(size.height * 0.4f, size.height * 0.15f),
+            size = Size((fillWidth - size.height * 0.8f).coerceAtLeast(0f), size.height * 0.3f),
+            cornerRadius = CornerRadius(size.height * 0.15f, size.height * 0.15f)
+        )
+        // Drifting light band, clipped to the filled part
+        clipRect(right = fillWidth) {
+            val bandX = size.width * shimmer
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    listOf(Color.Transparent, Color.White.copy(alpha = 0.35f), Color.Transparent),
+                    startX = bandX - size.height * 3,
+                    endX = bandX + size.height * 3
+                )
+            )
+        }
     }
 }
 
-/** Number that counts up/down to its target value. */
+/** Number that rolls smoothly to its target value. */
 @Composable
 fun AnimatedCounter(
     value: Int,
@@ -256,18 +315,22 @@ fun AnimatedCounter(
     color: Color = Color.Unspecified,
     suffix: String = ""
 ) {
-    val animated by animateIntAsState(targetValue = value, animationSpec = tween(800), label = "counter")
-    Text(text = "$animated$suffix", modifier = modifier, style = style, color = color)
+    val animated by animateFloatAsState(
+        targetValue = value.toFloat(),
+        animationSpec = spring(dampingRatio = 1f, stiffness = 50f),
+        label = "counter"
+    )
+    Text(text = "${animated.roundToInt()}$suffix", modifier = modifier, style = style, color = color)
 }
 
-/** Softly pulsing dot/badge used to draw the eye to due reviews. */
+/** Softly breathing dot/badge used to draw the eye to due reviews. */
 @Composable
 fun PulsingDot(color: Color, modifier: Modifier = Modifier, size: Int = 10) {
     val transition = rememberInfiniteTransition(label = "pulse")
     val scale by transition.animateFloat(
         initialValue = 0.8f,
         targetValue = 1.25f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "pulseScale"
     )
     Box(
@@ -280,29 +343,29 @@ fun PulsingDot(color: Color, modifier: Modifier = Modifier, size: Int = 10) {
 }
 
 /**
- * Feedback animation for quiz answers: shakes horizontally when [wrongTrigger]
- * changes to a new value and pops when [correctTrigger] does.
+ * Feedback animation for quiz answers. A wrong answer gets a spring-driven shake that decays
+ * naturally; a correct one gets a jelly squash-and-stretch.
  */
 fun Modifier.answerFeedback(correctTrigger: Int, wrongTrigger: Int): Modifier = composed {
     val shake = remember { Animatable(0f) }
-    val pop = remember { Animatable(1f) }
+    val stretch = remember { Animatable(0f) }
     LaunchedEffect(wrongTrigger) {
         if (wrongTrigger > 0) {
-            for (offset in listOf(14f, -12f, 9f, -6f, 3f, 0f)) {
-                shake.animateTo(offset, tween(45))
-            }
+            shake.snapTo(0f)
+            // A kick of velocity into an under-damped spring produces a natural decaying wobble
+            shake.animateTo(0f, spring(dampingRatio = 0.22f, stiffness = 900f), initialVelocity = 900f)
         }
     }
     LaunchedEffect(correctTrigger) {
         if (correctTrigger > 0) {
-            pop.animateTo(1.05f, tween(110))
-            pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+            stretch.snapTo(0f)
+            stretch.animateTo(0f, spring(dampingRatio = 0.3f, stiffness = 600f), initialVelocity = 2.2f)
         }
     }
     graphicsLayer {
         translationX = shake.value
-        scaleX = pop.value
-        scaleY = pop.value
+        scaleX = 1f + stretch.value * 0.6f
+        scaleY = 1f - stretch.value * 0.4f
     }
 }
 
@@ -340,7 +403,7 @@ fun CollectionSwitcher(
         val segmentHeight = maxHeight
         val indicatorOffset by animateDpAsState(
             targetValue = segmentWidth * selectedIndex,
-            animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
+            animationSpec = spring(dampingRatio = 0.62f, stiffness = 300f),
             label = "switcherOffset"
         )
         Box(

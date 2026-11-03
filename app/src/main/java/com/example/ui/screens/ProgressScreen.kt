@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import com.example.ui.theme.WarmCoral
+import com.example.ui.theme.SkyBlue
+import com.example.ui.theme.Lavender
+import com.example.ui.components.LiquidBlobs
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -95,7 +99,9 @@ fun ProgressScreen(
             item {
                 AnimatedEntrance(index = 0) {
                     Card(shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.background(HeroGradient).padding(22.dp)) {
+                        Box(modifier = Modifier.background(HeroGradient)) {
+                            LiquidBlobs(colors = listOf(WarmCoral, SkyBlue, Lavender), modifier = Modifier.matchParentSize())
+                            Column(modifier = Modifier.padding(22.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     modifier = Modifier.size(64.dp).clip(CircleShape)
@@ -123,6 +129,7 @@ fun ProgressScreen(
                                 SummaryStat("🏅", game.bestStreak, "best streak")
                                 SummaryStat("⭐", game.totalXp, "total XP")
                             }
+                        }
                         }
                     }
                 }
