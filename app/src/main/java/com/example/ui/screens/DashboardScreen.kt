@@ -1,5 +1,11 @@
 package com.example.ui.screens
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.Brush
+import com.example.ui.theme.WarmCoral
+import com.example.ui.theme.SkyBlue
+import com.example.ui.theme.Lavender
+import com.example.ui.components.LiquidBlobs
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -138,6 +144,7 @@ fun DashboardScreen(
     androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.refreshGameState() }
 
     var showGoalDialog by remember { mutableStateOf(false) }
+    var openedChest by remember { mutableStateOf<com.example.util.ChestReward?>(null) }
 
     Scaffold(
         topBar = {
@@ -233,6 +240,24 @@ fun DashboardScreen(
                 item {
                     AnimatedEntrance(index = 1) {
                         StreakCard(game = game, onClick = onNavigateToProgress)
+                    }
+                }
+
+                // Mystery chest appears once today's goal is reached
+                if (game.chestAvailable || openedChest != null) {
+                    item(key = "chest") {
+                        MysteryChestCard(
+                            reward = openedChest,
+                            onOpen = { openedChest = viewModel.openChest() },
+                            modifier = Modifier.animateItem()
+                        )
+                    }
+                }
+
+                // Daily quests
+                item {
+                    AnimatedEntrance(index = 2) {
+                        DailyQuestsCard(game = game)
                     }
                 }
 
@@ -361,7 +386,9 @@ fun DashboardScreen(
                         shape = RoundedCornerShape(28.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.background(HeroGradient).padding(22.dp)) {
+                        Box(modifier = Modifier.background(HeroGradient)) {
+                            LiquidBlobs(colors = listOf(WarmCoral, SkyBlue, Lavender), modifier = Modifier.matchParentSize())
+                            Column(modifier = Modifier.padding(22.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -458,6 +485,7 @@ fun DashboardScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                        }
                         }
                     }
                   }
@@ -941,7 +969,11 @@ private fun StreakCard(game: GamificationState, onClick: () -> Unit) {
                 AnimatedProgressBar(progress = game.dailyProgress, color = if (game.dailyProgress >= 1f) FreshMint else SunnyAmber, height = 8)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    if (game.dailyProgress >= 1f) "Daily goal reached ✅" else "Today: ${game.todayXp} / ${game.dailyGoalXp} XP",
+                    when {
+                        game.dailyProgress >= 1f -> "Daily goal reached ✅"
+                        game.xpToGoal <= 20 -> "Only ${game.xpToGoal} XP to your goal — almost there!"
+                        else -> "Today: ${game.todayXp} / ${game.dailyGoalXp} XP"
+                    },
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -950,6 +982,136 @@ private fun StreakCard(game: GamificationState, onClick: () -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("🏅", fontSize = 22.sp)
                 Text("${game.earnedBadges.size}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                if (game.streakFreezes > 0) {
+                    Text("🧊×${game.streakFreezes}", fontSize = 11.sp, color = SkyBlue, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DailyQuestsCard(game: GamificationState) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Daily quests", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                val done = game.quests.count { it.done }
+                Text(
+                    "$done/${game.quests.size} • +25 XP each",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            game.quests.forEach { quest ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
+                    val pop by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (quest.done) 1f else 0f,
+                        animationSpec = com.example.ui.theme.Motion.jelly(),
+                        label = "questDone"
+                    )
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .graphicsLayer { val sc = 1f + 0.15f * pop * (1f - pop) * 4f; scaleX = sc; scaleY = sc }
+                            .background(
+                                if (quest.done) FreshMint.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(12.dp)
+                            )
+                    ) {
+                        Text(if (quest.done) "✅" else quest.type.emoji, fontSize = 17.sp)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            quest.type.title,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (quest.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(5.dp))
+                        AnimatedProgressBar(
+                            progress = quest.fraction,
+                            color = if (quest.done) FreshMint else BrandIndigo,
+                            height = 7
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        "${quest.progress}/${quest.type.target}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Today's reward chest. It wobbles to invite a tap; opening it reveals a random reward
+ * (XP, sometimes a streak freeze, rarely a jackpot) with a springy reveal.
+ */
+@Composable
+private fun MysteryChestCard(reward: com.example.util.ChestReward?, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val wobble by androidx.compose.animation.core.rememberInfiniteTransition(label = "chest").animateFloat(
+        initialValue = -8f,
+        targetValue = 8f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "chestWobble"
+    )
+    val revealScale = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(reward) {
+        if (reward != null) revealScale.animateTo(1f, com.example.ui.theme.Motion.jelly())
+    }
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        modifier = modifier.fillMaxWidth().bouncyClickable { if (reward == null) onOpen() }
+    ) {
+        Box(modifier = Modifier.background(Brush.linearGradient(listOf(SunnyAmber, WarmCoral)))) {
+            LiquidBlobs(colors = listOf(Color.White, SunnyAmber, Lavender), modifier = Modifier.matchParentSize(), periodMillis = 8000)
+            Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (reward == null) "🎁" else if (reward?.jackpot == true) "💰" else if (reward?.streakFreeze == true) "🧊" else "✨",
+                    fontSize = 40.sp,
+                    modifier = Modifier.graphicsLayer {
+                        if (reward == null) rotationZ = wobble
+                        else { scaleX = 0.6f + 0.4f * revealScale.value; scaleY = 0.6f + 0.4f * revealScale.value }
+                    }
+                )
+                Spacer(modifier = Modifier.width(14.dp))
+                Column {
+                    val r = reward
+                    Text(
+                        when {
+                            r == null -> "Daily goal reached!"
+                            r.jackpot -> "JACKPOT!"
+                            r.streakFreeze -> "Streak freeze!"
+                            else -> "Nice find!"
+                        },
+                        color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp
+                    )
+                    Text(
+                        when {
+                            r == null -> "Tap to open your mystery chest"
+                            r.streakFreeze -> "+${r.xp} XP and a freeze that protects your streak"
+                            else -> "+${r.xp} bonus XP"
+                        },
+                        color = Color.White.copy(alpha = 0.92f), fontSize = 13.sp
+                    )
+                }
             }
         }
     }

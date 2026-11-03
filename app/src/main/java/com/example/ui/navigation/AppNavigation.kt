@@ -1,7 +1,9 @@
 package com.example.ui.navigation
 
 import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import com.example.ui.theme.Motion
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -58,21 +60,22 @@ fun AppNavigation(
         navController = navController,
         startDestination = Destinations.DASHBOARD,
         modifier = modifier,
+        // Springs instead of fixed-duration tweens: screens glide in and settle like liquid
         enterTransition = {
-            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(380, easing = FastOutSlowInEasing)) +
-                fadeIn(tween(380))
+            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, Motion.screen) { it / 3 } +
+                fadeIn(tween(260)) + scaleIn(Motion.smooth(), initialScale = 0.96f)
         },
         exitTransition = {
-            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(380, easing = FastOutSlowInEasing)) { it / 4 } +
-                fadeOut(tween(250))
+            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, Motion.screen) { it / 6 } +
+                fadeOut(tween(200)) + scaleOut(Motion.smooth(), targetScale = 0.97f)
         },
         popEnterTransition = {
-            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(380, easing = FastOutSlowInEasing)) { it / 4 } +
-                fadeIn(tween(380))
+            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, Motion.screen) { it / 6 } +
+                fadeIn(tween(260)) + scaleIn(Motion.smooth(), initialScale = 0.97f)
         },
         popExitTransition = {
-            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(380, easing = FastOutSlowInEasing)) +
-                fadeOut(tween(250))
+            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, Motion.screen) { it / 3 } +
+                fadeOut(tween(200)) + scaleOut(Motion.smooth(), targetScale = 0.96f)
         }
     ) {
         composable(Destinations.DASHBOARD) {
