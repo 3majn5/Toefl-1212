@@ -295,12 +295,12 @@ object ConfusableWordsData {
         if (filtered.isEmpty()) return PAIRS
 
         val byNumber = entries.associateBy { it.entryNumber }
-        val byLength = entries.groupBy { it.answerForm.length }
+        val index = PartnerIndex(entries)
 
         return filtered.map { entry ->
             val (partner, reason) = entry.duplicateWithNumbers.firstNotNullOfOrNull { byNumber[it] }
                 ?.let { it to "Same headword, different source entry" }
-                ?: findPartner(entry, entries, byLength)
+                ?: findPartner(entry, index)
 
             val wordALabel = if (entry.headword.equals(partner.headword, ignoreCase = true)) {
                 "${entry.headword} (${entry.listLabel})"
@@ -355,55 +355,93 @@ object ConfusableWordsData {
         }
     }
 
-    /** Words in the same family (analyze / analysis) are related, not confusable. */
-    private fun sameFamily(a: VocabEntry, b: VocabEntry): Boolean {
-        val wa = a.answerForm.lowercase()
-        val wb = b.answerForm.lowercase()
-        val familyA = a.wordFamily.map { it.substringBefore(" (").lowercase() }
-        val familyB = b.wordFamily.map { it.substringBefore(" (").lowercase() }
-        val sharedStem = wa.length >= 5 && wb.length >= 5 && wa.take(wa.length - 2) == wb.take(wa.length - 2)
-        return wb in familyA || wa in familyB || wa.startsWith(wb) || wb.startsWith(wa) || sharedStem
+    /**
+     * Per-entry lowercase forms, families and synonyms, computed once per build. Partner search
+     * runs for every word in the list (1,782 with AWL), so redoing this work inside the inner
+     * loops made "All Words" take long enough to freeze the screen.
+     */
+    private class PartnerIndex(val entries: List<VocabEntry>) {
+        val word = HashMap<Int, String>(entries.size * 2)
+        val family = HashMap<Int, Set<String>>(entries.size * 2)
+        val synonyms = HashMap<Int, Set<String>>(entries.size * 2)
+        val order = HashMap<Int, Int>(entries.size * 2)
+        val byLength: Map<Int, List<VocabEntry>>
+        /** synonym/headword (lowercase) -> entries that list it as a synonym or are that word */
+        val bySynonymOrWord = HashMap<String, MutableList<VocabEntry>>()
+        val byCollectionPos = HashMap<Pair<String, String?>, MutableList<VocabEntry>>()
+
+        init {
+            entries.forEachIndexed { i, e ->
+                val w = e.answerForm.lowercase()
+                word[e.entryNumber] = w
+                order[e.entryNumber] = i
+                family[e.entryNumber] = e.wordFamily.mapTo(HashSet()) { it.substringBefore(" (").lowercase() }
+                val syns = e.dictionarySynonyms.mapTo(HashSet()) { it.lowercase() }
+                synonyms[e.entryNumber] = syns
+                (syns + w).forEach { bySynonymOrWord.getOrPut(it) { mutableListOf() }.add(e) }
+                byCollectionPos.getOrPut(e.collection to null) { mutableListOf() }.add(e)
+                e.grammaticalLabels.toSet().forEach { pos ->
+                    byCollectionPos.getOrPut(e.collection to pos) { mutableListOf() }.add(e)
+                }
+            }
+            byLength = entries.groupBy { it.answerForm.length }
+        }
+
+        /** Words in the same family (analyze / analysis) are related, not confusable. */
+        fun sameFamily(a: VocabEntry, b: VocabEntry): Boolean {
+            val wa = word.getValue(a.entryNumber)
+            val wb = word.getValue(b.entryNumber)
+            val sharedStem = wa.length >= 5 && wb.length >= 5 && wa.take(wa.length - 2) == wb.take(wa.length - 2)
+            return wb in family.getValue(a.entryNumber) || wa in family.getValue(b.entryNumber) ||
+                wa.startsWith(wb) || wb.startsWith(wa) || sharedStem
+        }
     }
 
     /**
      * Best contrast partner: a genuine look-alike spelling first (adapt / adopt), then a
      * near-synonym that shares a synonym (ample / abundant), then a same-part-of-speech word.
      */
-    private fun findPartner(
-        entry: VocabEntry,
-        entries: List<VocabEntry>,
-        byLength: Map<Int, List<VocabEntry>>
-    ): Pair<VocabEntry, String> {
-        val word = entry.answerForm.lowercase()
+    private fun findPartner(entry: VocabEntry, index: PartnerIndex): Pair<VocabEntry, String> {
+        val word = index.word.getValue(entry.entryNumber)
         if (!word.contains(' ')) {
-            val candidates = (word.length - 2..word.length + 2).flatMap { byLength[it].orEmpty() }
-            val lookAlike = candidates
-                .asSequence()
-                .filter { it.entryNumber != entry.entryNumber && !it.answerForm.contains(' ') }
-                .filter { it.answerForm.lowercase() != word && !sameFamily(entry, it) }
-                .map { it to SpellingChecker.damerauLevenshtein(word, it.answerForm.lowercase()) }
-                .filter { (_, d) -> d <= maxOf(1, word.length / 4) }
-                .minWithOrNull(compareBy<Pair<VocabEntry, Int>> { it.second }.thenBy { if (it.first.collection == entry.collection) 0 else 1 })
-            if (lookAlike != null) return lookAlike.first to "Look-alike spelling"
+            val maxDistance = maxOf(1, word.length / 4)
+            // Only lengths within the allowed edit distance can qualify
+            val candidates = (word.length - maxDistance..word.length + maxDistance).flatMap { index.byLength[it].orEmpty() }
+            var best: VocabEntry? = null
+            var bestDistance = Int.MAX_VALUE
+            for (other in candidates) {
+                if (other.entryNumber == entry.entryNumber) continue
+                val ow = index.word.getValue(other.entryNumber)
+                if (ow == word || ow.contains(' ')) continue
+                val d = SpellingChecker.damerauLevenshtein(word, ow)
+                if (d > maxDistance || d > bestDistance) continue
+                val better = d < bestDistance ||
+                    (best != null && best.collection != entry.collection && other.collection == entry.collection)
+                if (better && !index.sameFamily(entry, other)) {
+                    best = other
+                    bestDistance = d
+                }
+            }
+            if (best != null) return best to "Look-alike spelling"
         }
 
-        val synonyms = entry.dictionarySynonyms.map { it.lowercase() }.toSet()
-        val nearSynonym = entries.firstOrNull { other ->
-            other.entryNumber != entry.entryNumber &&
-                other.answerForm.lowercase() != word &&
-                !sameFamily(entry, other) &&
-                (other.answerForm.lowercase() in synonyms ||
-                    other.dictionarySynonyms.any { it.lowercase() in synonyms })
-        }
+        val synonyms = index.synonyms.getValue(entry.entryNumber)
+        val nearSynonym = synonyms.asSequence()
+            .flatMap { index.bySynonymOrWord[it].orEmpty().asSequence() }
+            .filter { other ->
+                other.entryNumber != entry.entryNumber &&
+                    index.word.getValue(other.entryNumber) != word &&
+                    !index.sameFamily(entry, other)
+            }
+            .minByOrNull { index.order.getValue(it.entryNumber) }
         if (nearSynonym != null) return nearSynonym to "Similar meaning — choose the precise word"
 
         val pos = entry.grammaticalLabels.firstOrNull()
-        val samePos = entries.filter {
-            it.entryNumber != entry.entryNumber && it.collection == entry.collection &&
-                (pos == null || pos in it.grammaticalLabels) && it.answerForm.lowercase() != word
+        val samePos = index.byCollectionPos[entry.collection to pos].orEmpty().filter {
+            it.entryNumber != entry.entryNumber && index.word.getValue(it.entryNumber) != word
         }
         val fallback = samePos.getOrNull(Math.floorMod(entry.entryNumber * 31, samePos.size.coerceAtLeast(1)))
-            ?: entries.firstOrNull { it.entryNumber != entry.entryNumber }
+            ?: index.entries.firstOrNull { it.entryNumber != entry.entryNumber }
             ?: entry
         return fallback to "Same part of speech"
     }

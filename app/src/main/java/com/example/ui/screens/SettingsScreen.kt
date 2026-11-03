@@ -169,7 +169,7 @@ fun SettingsScreen(
                         if (permissionDenied) {
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                "Notifications are blocked. Allow them in Android Settings → Apps → TOEFL 1212 to get reminders.",
+                                "Notifications are blocked. Allow them in Android Settings → Apps → TOEFL 35 to get reminders.",
                                 color = MaterialTheme.colorScheme.error,
                                 fontSize = 12.sp
                             )

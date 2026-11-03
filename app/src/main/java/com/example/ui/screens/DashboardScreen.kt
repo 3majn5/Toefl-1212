@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import com.example.ui.theme.SoftRose
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.Brush
 import com.example.ui.theme.WarmCoral
@@ -123,6 +126,9 @@ fun DashboardScreen(
     onNavigateToBackupRestore: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onNavigateToProgress: () -> Unit = {},
+    onNavigateToSpeaking: () -> Unit = {},
+    onNavigateToMistakes: () -> Unit = {},
+    onNavigateToChallenge: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val stats by viewModel.studyStats.collectAsState()
@@ -135,6 +141,8 @@ fun DashboardScreen(
     val scopedEntries by viewModel.allEntries.collectAsState()
     val anomalyCount = scopedEntries.count { it.hasAnomaly }
     val game by viewModel.gameState.collectAsState()
+    val mistakes by viewModel.mistakes.collectAsState()
+    val bestChallenge by viewModel.bestChallenge.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val isDark = when (themeMode) {
         ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
@@ -152,7 +160,7 @@ fun DashboardScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Vocab Mastery",
+                            text = "TOEFL 35",
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 22.sp
                         )
@@ -258,6 +266,37 @@ fun DashboardScreen(
                 item {
                     AnimatedEntrance(index = 2) {
                         DailyQuestsCard(game = game)
+                    }
+                }
+
+                // 60-second challenge banner
+                item {
+                    AnimatedEntrance(index = 3) {
+                        ChallengeBanner(best = bestChallenge, onClick = onNavigateToChallenge)
+                    }
+                }
+
+                // Speaking & mistakes
+                item {
+                    AnimatedEntrance(index = 3) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ActionCard(
+                                title = "Speaking Studio",
+                                subtitle = "TOEFL tasks & pronunciation",
+                                icon = Icons.Default.Mic,
+                                color = WarmCoral,
+                                onClick = onNavigateToSpeaking,
+                                modifier = Modifier.weight(1f).testTag("card_speaking")
+                            )
+                            ActionCard(
+                                title = "Mistake Notebook",
+                                subtitle = if (mistakes.isEmpty()) "Words you missed" else "${mistakes.size} word${if (mistakes.size == 1) "" else "s"} to fix",
+                                icon = Icons.Default.EditNote,
+                                color = SoftRose,
+                                onClick = onNavigateToMistakes,
+                                modifier = Modifier.weight(1f).testTag("card_mistakes")
+                            )
+                        }
                     }
                 }
 
@@ -1112,6 +1151,32 @@ private fun MysteryChestCard(reward: com.example.util.ChestReward?, onOpen: () -
                         color = Color.White.copy(alpha = 0.92f), fontSize = 13.sp
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChallengeBanner(best: Int, onClick: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        modifier = Modifier.fillMaxWidth().bouncyClickable(onClick)
+    ) {
+        Box(modifier = Modifier.background(Brush.horizontalGradient(listOf(WarmCoral, SunnyAmber)))) {
+            LiquidBlobs(colors = listOf(Lavender, SoftRose), modifier = Modifier.matchParentSize(), periodMillis = 9000)
+            Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("⚡", fontSize = 34.sp)
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("60-Second Challenge", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+                    Text(
+                        if (best > 0) "Personal best: $best — can you beat it?" else "How many words can you get in a minute?",
+                        color = Color.White.copy(alpha = 0.92f),
+                        fontSize = 13.sp
+                    )
+                }
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White)
             }
         }
     }

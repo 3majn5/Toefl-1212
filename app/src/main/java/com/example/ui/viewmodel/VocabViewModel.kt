@@ -26,6 +26,10 @@ import com.example.util.FsrsScheduler
 import com.example.util.Activity
 import com.example.util.ChestReward
 import com.example.util.FeedbackFx
+import com.example.util.MistakeNotebook
+import com.example.util.MistakeRecord
+import com.example.util.SpeakingFeedback
+import com.example.widget.WordWidgetProvider
 import com.example.util.GamificationManager
 import com.example.util.GamificationState
 import com.example.util.ReminderScheduler
@@ -289,7 +293,10 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
      * multiplier, and a small chance of a surprise double-XP "lucky" bonus. Self-rated
      * flashcards never feed the combo or lucky rolls, so there's no incentive to rate dishonestly.
      */
-    private fun rewardAnswer(isCorrect: Boolean, direction: LearningDirection, strongSentence: Boolean = false) {
+    private fun rewardAnswer(isCorrect: Boolean, direction: LearningDirection, strongSentence: Boolean = false) =
+        rewardAnswer(isCorrect, direction.name, strongSentence)
+
+    private fun rewardAnswer(isCorrect: Boolean, skill: String, strongSentence: Boolean = false) {
         val combo = if (isCorrect) _combo.value + 1 else 0
         _combo.value = combo
         if (combo > _sessionStats.value.bestCombo) _sessionStats.value = _sessionStats.value.copy(bestCombo = combo)
@@ -297,7 +304,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         if (isCorrect) FeedbackFx.correct(combo, lucky) else FeedbackFx.wrong()
         award(
             xp = if (isCorrect) GamificationManager.XP_CORRECT else GamificationManager.XP_WRONG,
-            activity = Activity(correctAnswer = isCorrect, combo = combo, skill = direction.name, strongSentence = strongSentence),
+            activity = Activity(correctAnswer = isCorrect, combo = combo, skill = skill, strongSentence = strongSentence),
             multiplier = GamificationManager.comboMultiplier(combo),
             lucky = lucky
         )
@@ -305,6 +312,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Called by the quiz as soon as an answer is checked (before "Continue"). */
     fun onQuizAnswerGraded(isCorrect: Boolean, question: QuizQuestion) {
+        if (question.entryNumber != 0) recordMistake(question.entryNumber, isCorrect, question.direction.name)
         rewardAnswer(isCorrect, question.direction, strongSentence = isCorrect && question.direction == LearningDirection.PRODUCTION)
     }
 
@@ -324,6 +332,96 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshGameState() {
         _gameState.value = gamification.state()
+    }
+
+
+    // ── Mistake notebook ────────────────────────────────────────
+    private val mistakeNotebook = MistakeNotebook(
+        application.getSharedPreferences("toefl_1212_study_prefs", android.content.Context.MODE_PRIVATE)
+    )
+    private val _mistakes = MutableStateFlow(mistakeNotebook.all())
+    val mistakes: StateFlow<List<MistakeRecord>> = _mistakes.asStateFlow()
+
+    private fun recordMistake(entryNumber: Int, isCorrect: Boolean, channel: String) {
+        mistakeNotebook.record(entryNumber, isCorrect, channel)
+        _mistakes.value = mistakeNotebook.all()
+    }
+
+    fun removeMistake(entryNumber: Int) {
+        mistakeNotebook.remove(entryNumber)
+        _mistakes.value = mistakeNotebook.all()
+    }
+
+    /** Quiz on up to 10 notebook words, most recent misses first, mixing three question types. */
+    fun startMistakeDrill(): Boolean {
+        val byNumber = everyEntry.value.associateBy { it.entryNumber }
+        val targets = _mistakes.value.sortedByDescending { it.lastWrongAt }.mapNotNull { byNumber[it.entryNumber] }.take(10)
+        if (targets.isEmpty()) return false
+        val pool = everyEntry.value
+        val directions = listOf(LearningDirection.RECOGNITION, LearningDirection.REVERSE_RECALL, LearningDirection.SPELLING)
+        val questions = targets.mapIndexed { i, entry ->
+            repository.createQuestion(entry, pool, directions[i % directions.size])
+        }.shuffled()
+        _sessionPhase.value = SessionPhase.Quiz(0, questions, mutableMapOf())
+        return true
+    }
+
+    // ── 60-second challenge ─────────────────────────────────────
+    private val challengePrefs = application.getSharedPreferences("toefl_1212_study_prefs", android.content.Context.MODE_PRIVATE)
+    private val _bestChallenge = MutableStateFlow(challengePrefs.getInt("challenge_best", 0))
+    val bestChallenge: StateFlow<Int> = _bestChallenge.asStateFlow()
+
+    fun nextChallengeQuestion(): QuizQuestion? {
+        val pool = allEntries.value
+        if (pool.size < 4) return null
+        return repository.createQuestion(pool.random(), pool, LearningDirection.RECOGNITION)
+    }
+
+    fun answerChallenge(question: QuizQuestion, isCorrect: Boolean) {
+        val entry = everyEntry.value.find { it.entryNumber == question.entryNumber }
+        if (entry != null) recordSkillPractice(entry, LearningDirection.RECOGNITION, isCorrect)
+        else rewardAnswer(isCorrect, LearningDirection.RECOGNITION)
+    }
+
+    /** Saves the score; returns true for a new personal best. */
+    fun finishChallenge(score: Int): Boolean {
+        _combo.value = 0
+        if (score <= _bestChallenge.value) return false
+        challengePrefs.edit().putInt("challenge_best", score).apply()
+        val hadRecord = _bestChallenge.value > 0
+        _bestChallenge.value = score
+        if (hadRecord) FeedbackFx.fanfare()
+        return hadRecord
+    }
+
+    // ── Speaking & pronunciation ────────────────────────────────
+    /** XP for a speaking answer: 10 for trying plus 10 per rubric point. */
+    fun rewardSpeaking(feedback: SpeakingFeedback) {
+        if (feedback.wordCount == 0) return
+        if (feedback.score >= 3) FeedbackFx.correct(3) else FeedbackFx.tap()
+        award(10 + feedback.score * 10, Activity(skill = "SPEAKING"))
+    }
+
+    fun rewardPronunciation(entry: VocabEntry, score: Int) {
+        recordMistake(entry.entryNumber, score > 0, "PRONUNCIATION")
+        rewardAnswer(score > 0, "PRONUNCIATION")
+    }
+
+    // ── Home-screen widget ──────────────────────────────────────
+    init {
+        viewModelScope.launch {
+            combine(studyStats, _gameState, allEntries) { stats, game, entries -> Triple(stats, game, entries) }
+                .collect { (stats, game, entries) ->
+                    if (entries.isEmpty()) return@collect
+                    val day = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis())
+                    val rotation = entries.filter { it.studyStatus != StudyStatus.MASTERED && it.primaryMeaning.isNotBlank() }
+                        .ifEmpty { entries }
+                        .shuffled(kotlin.random.Random(day))
+                        .take(60)
+                        .map { it.headword to it.primaryMeaning }
+                    WordWidgetProvider.saveSnapshot(getApplication(), game.streakDays, game.studiedToday, stats.dueCount, rotation)
+                }
+        }
     }
 
     // ── Progress charts ─────────────────────────────────────────
@@ -485,6 +583,11 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
             refreshForecast()
         }
         FeedbackFx.tap()
+        when (rating) {
+            FsrsRating.AGAIN -> recordMistake(entry.entryNumber, false, "FLASHCARD")
+            FsrsRating.GOOD, FsrsRating.EASY -> recordMistake(entry.entryNumber, true, "FLASHCARD")
+            FsrsRating.HARD -> {}
+        }
         award(GamificationManager.xpForRating(rating.value), Activity(flashcard = true))
 
         val current = _sessionPhase.value
@@ -575,6 +678,7 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.recordSkillPractice(entry, direction, isCorrect)
         }
+        recordMistake(entry.entryNumber, isCorrect, direction.name)
         rewardAnswer(isCorrect, direction)
     }
 
