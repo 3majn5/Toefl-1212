@@ -22,7 +22,10 @@ import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.ListeningLabScreen
 import com.example.ui.screens.PageAuditScreen
 import com.example.ui.screens.PracticeModesScreen
+import com.example.ui.screens.MistakeNotebookScreen
 import com.example.ui.screens.ProgressScreen
+import com.example.ui.screens.SpeakingScreen
+import com.example.ui.screens.TimedChallengeScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SentenceCoachScreen
 import com.example.ui.screens.StudyPlannerScreen
@@ -46,6 +49,9 @@ object Destinations {
     const val BACKUP_RESTORE = "backup_restore"
     const val SETTINGS = "settings"
     const val PROGRESS = "progress"
+    const val SPEAKING = "speaking"
+    const val MISTAKES = "mistakes"
+    const val CHALLENGE = "challenge"
 }
 
 @Composable
@@ -95,7 +101,10 @@ fun AppNavigation(
                 onNavigateToConfusables = { navController.navigate(Destinations.CONFUSABLE_WORDS) },
                 onNavigateToBackupRestore = { navController.navigate(Destinations.BACKUP_RESTORE) },
                 onNavigateToSettings = { navController.navigate(Destinations.SETTINGS) },
-                onNavigateToProgress = { navController.navigate(Destinations.PROGRESS) }
+                onNavigateToProgress = { navController.navigate(Destinations.PROGRESS) },
+                onNavigateToSpeaking = { navController.navigate(Destinations.SPEAKING) },
+                onNavigateToMistakes = { navController.navigate(Destinations.MISTAKES) },
+                onNavigateToChallenge = { navController.navigate(Destinations.CHALLENGE) }
             )
         }
 
@@ -200,6 +209,26 @@ fun AppNavigation(
 
         composable(Destinations.PROGRESS) {
             ProgressScreen(viewModel = viewModel, onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Destinations.SPEAKING) {
+            SpeakingScreen(viewModel = viewModel, onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Destinations.MISTAKES) {
+            MistakeNotebookScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onStartDrill = { navController.navigate(Destinations.STUDY_SESSION) },
+                onWordSelected = {
+                    viewModel.selectEntry(it)
+                    navController.navigate(Destinations.WORD_DETAIL)
+                }
+            )
+        }
+
+        composable(Destinations.CHALLENGE) {
+            TimedChallengeScreen(viewModel = viewModel, onNavigateBack = { navController.popBackStack() })
         }
 
         composable(Destinations.BACKUP_RESTORE) {

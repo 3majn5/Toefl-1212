@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.graphics.asImageBitmap
 import com.example.ui.theme.WarmCoral
 import com.example.ui.theme.SkyBlue
 import com.example.ui.theme.Lavender
@@ -71,6 +74,20 @@ fun ProgressScreen(
     val game by viewModel.gameState.collectAsState()
     val progress by viewModel.weeklyProgress.collectAsState()
     val stats by viewModel.studyStats.collectAsState()
+    val bestChallenge by viewModel.bestChallenge.collectAsState()
+    val shareContext = androidx.compose.ui.platform.LocalContext.current
+    val cardData = com.example.util.ProgressCardData(
+        streakDays = game.streakDays,
+        level = game.level,
+        totalXp = game.totalXp,
+        wordsLearned = stats.learningCount + stats.reviewingCount + stats.masteredCount,
+        wordsMastered = stats.masteredCount,
+        badges = game.earnedBadges.size,
+        bestChallenge = bestChallenge
+    )
+    val cardPreview = androidx.compose.runtime.remember(cardData) {
+        com.example.util.ProgressCard.render(cardData).asImageBitmap()
+    }
     var showTable by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -149,6 +166,37 @@ fun ProgressScreen(
                             if (game.dailyProgress >= 1f) {
                                 Spacer(Modifier.height(6.dp))
                                 Text("Goal reached — great work today! ✅", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Shareable progress card
+            item {
+                AnimatedEntrance(index = 2) {
+                    Card(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp)) {
+                            Text("Share your progress", fontWeight = FontWeight.Bold)
+                            Text("Post your streak to Instagram, X, or send it to a study buddy", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(12.dp))
+                            androidx.compose.foundation.Image(
+                                bitmap = cardPreview,
+                                contentDescription = "Progress card preview",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(com.example.util.ProgressCard.WIDTH / com.example.util.ProgressCard.HEIGHT.toFloat())
+                                    .clip(RoundedCornerShape(18.dp))
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            androidx.compose.material3.Button(
+                                onClick = { com.example.util.ProgressCard.share(shareContext, cardData) },
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth().height(50.dp)
+                            ) {
+                                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.Share, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Share progress card", fontWeight = FontWeight.Bold)
                             }
                         }
                     }

@@ -211,7 +211,7 @@ fun BackupRestoreScreen(
                                     try {
                                         val json = viewModel.exportJson()
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        val clip = ClipData.newPlainText("TOEFL 1212 Backup", json)
+                                        val clip = ClipData.newPlainText("TOEFL 35 Backup", json)
                                         clipboard.setPrimaryClip(clip)
                                         snackbarHostState.showSnackbar("JSON backup copied to clipboard (${json.length} characters)")
                                     } catch (e: Exception) {
@@ -247,7 +247,7 @@ fun BackupRestoreScreen(
                                     try {
                                         val csv = viewModel.exportCsv()
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        val clip = ClipData.newPlainText("TOEFL 1212 CSV", csv)
+                                        val clip = ClipData.newPlainText("TOEFL 35 CSV", csv)
                                         clipboard.setPrimaryClip(clip)
                                         snackbarHostState.showSnackbar("CSV table copied to clipboard (${csv.lines().size} rows)")
                                     } catch (e: Exception) {

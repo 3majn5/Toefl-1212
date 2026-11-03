@@ -246,6 +246,32 @@ fun WordDetailScreen(
                 }
             }
 
+            // Pronunciation check: say the word, see if the recognizer understands it
+            item {
+                val speech = com.example.util.rememberSpeechListener()
+                var permissionTick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+                val micLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+                ) { permissionTick++ }
+                var showCheck by androidx.compose.runtime.saveable.rememberSaveable(entry.entryNumber) { mutableStateOf(false) }
+                if (!showCheck) {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            showCheck = true
+                            micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Text("🎙️  Check my pronunciation", fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    androidx.compose.runtime.key(permissionTick) {
+                        PronunciationCheckCard(entry = entry, viewModel = viewModel, listener = speech)
+                    }
+                }
+            }
+
             // FSRS Memory & Retention Science Card
             item {
                 Card(

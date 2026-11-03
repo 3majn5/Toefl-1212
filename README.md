@@ -1,4 +1,6 @@
-# TOEFL 1212: Intelligent Offline Vocabulary Mastery System 🎓
+# TOEFL 35: Intelligent Offline Vocabulary Mastery System 🎓
+
+*Formerly TOEFL 1212. The app now covers the TOEFL 1212 list, the Academic Word List, speaking practice and more.*
 
 [![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B-green.svg)](https://developer.android.com)
 [![Language](https://img.shields.io/badge/Language-Kotlin%20100%25-purple.svg)](https://kotlinlang.org)
@@ -11,17 +13,25 @@
 
 ## 📥 Download
 
-[![Download APK](https://img.shields.io/badge/Download%20APK-v1.3.1-5B5BD6?style=for-the-badge&logo=android&logoColor=white)](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk)
+[![Download APK](https://img.shields.io/badge/Download%20APK-v1.4.0-5B5BD6?style=for-the-badge&logo=android&logoColor=white)](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk)
 
-**[⬇️ Download TOEFL 1212 v1.3.1 for Android (APK, ~18 MB)](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk)** — free, works offline, Android 7.0 or newer.
+**[⬇️ Download TOEFL 35 v1.4.0 for Android (APK, ~18 MB)](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk)** — free, works offline, Android 7.0 or newer.
 
 **How to install:** open the downloaded file on your phone. If Android asks, allow installs from your browser or file manager ("Install unknown apps"), then tap **Install**.
 
-> **Updating from v1.0.x?** That version was signed with a different key, so Android can't install over it. First open **Backup & Export → Copy Full JSON Backup** in the old app and save the text, uninstall it, install v1.3.1, then paste the backup in **Backup & Export** to restore your progress. Updating from v1.1.0 or later works directly.
+> **Updating from v1.0.x?** That version was signed with a different key, so Android can't install over it. First open **Backup & Export → Copy Full JSON Backup** in the old app and save the text, uninstall it, install v1.4.0, then paste the backup in **Backup & Export** to restore your progress. Updating from v1.1.0 or later works directly.
 
-- 🇮🇷 **دانلود:** [نسخه ۱٫۳٫۱ اندروید را دریافت کنید](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk) — فایل را روی گوشی باز کنید و در صورت درخواست، «نصب برنامه‌های ناشناس» را مجاز کنید.
-- 🇮🇳 **डाउनलोड:** [Android के लिए v1.3.1 डाउनलोड करें](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk) — फ़ाइल खोलें और पूछे जाने पर "अज्ञात ऐप्स इंस्टॉल करें" की अनुमति दें।
-- 🇨🇳 **下载：** [下载 Android 版 v1.3.1](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk) — 在手机上打开文件，如有提示请允许“安装未知应用”。
+- 🇮🇷 **دانلود:** [نسخه ۱٫۴٫۰ اندروید را دریافت کنید](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk) — فایل را روی گوشی باز کنید و در صورت درخواست، «نصب برنامه‌های ناشناس» را مجاز کنید.
+- 🇮🇳 **डाउनलोड:** [Android के लिए v1.4.0 डाउनलोड करें](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk) — फ़ाइल खोलें और पूछे जाने पर "अज्ञात ऐप्स इंस्टॉल करें" की अनुमति दें।
+- 🇨🇳 **下载：** [下载 Android 版 v1.4.0](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk) — 在手机上打开文件，如有提示请允许“安装未知应用”。
+
+### ✨ What's new in v1.4.0 — now called **TOEFL 35**
+- 🎙️ **Speaking Studio**: TOEFL-style speaking tasks with 15 s prep and a 45 s answer, live transcript, and a 0–4 score with feedback on pace, fillers, structure and target words
+- 🗣️ **Pronunciation check**: say a word and see whether speech recognition understands it (also on every word page)
+- 📒 **Mistake Notebook**: every word you miss, in any mode, collected in one place, with a "Drill my mistakes" quiz
+- ⚡ **60-Second Challenge**: answer as many as you can in a minute and beat your personal best
+- 📱 **Home-screen widget**: word of the day, your streak and reviews due
+- 📤 **Shareable progress card**: post your streak and stats to Instagram, X or WhatsApp
 
 ### 🛠️ v1.3.1
 - Fixed: the Discrimination Quiz froze ("App isn't responding") on *All Words*, and quizzes jumped back to question 1 after each answer
@@ -57,14 +67,17 @@
 ## 🇺🇸 English
 
 ### 📖 Introduction
-**TOEFL 1212** is an advanced, offline-first vocabulary learning and memory retention system designed for students, researchers, and candidates preparing for the **TOEFL iBT®** examination. 
+**TOEFL 35** (formerly TOEFL 1212) is an advanced, offline-first vocabulary learning and memory retention system designed for students, researchers, and candidates preparing for the **TOEFL iBT®** examination. 
 
 The application preserves the exact, authentic dataset of **1,212 numbered academic words** extracted from the official 46-page list (#1 to #1212). It integrates the scientifically proven **Free Spaced Repetition Scheduler (FSRS)** algorithm, multi-modal practice labs, listening speed controls, and a writing coach to ensure high-speed retention and authentic exam transfer.
 
 ### 🌟 Key Capabilities
+- 🎙️ **Speaking Studio & Pronunciation:** TOEFL-style speaking tasks scored 0–4 from a live transcript (pace, fillers, structure, target words), plus a say-the-word pronunciation check. Falls back to typing if your phone has no speech recognition.
+- 📒 **Mistake Notebook:** Every missed word from any mode in one list; drill them, and a word leaves after two correct answers in a row.
+- ⚡ **60-Second Challenge, widget & share card:** A timed quiz with a personal best, a home-screen widget with the word of the day, and a progress card you can share.
 - 🎓 **Academic Word List (AWL) Collection:** All 570 AWL headwords (Coxhead) with learner definitions, synonyms, and two real example sentences each. Switch between **TOEFL 1212**, **AWL 570**, or **Both** from the Dashboard or Browse screen; every lab and quiz follows the active list.
 - 🌐 **Native-Language Translations:** Short Persian (فارسی), Hindi (हिन्दी), and Chinese (中文) glosses for every word, shown on flashcards, in Browse, and on the word page. Choose your language in Settings.
-- 🔥 **Streaks, XP & Badges:** Earn XP for every review and quiz, level up, keep a daily streak, and unlock 15 badges.
+- 🔥 **Streaks, XP & Badges:** Earn XP for every review and quiz, level up, keep a daily streak, and unlock 18 badges.
 - ⏰ **Daily Reminders:** A notification at the time you choose with your due-review count, skipped on days you've already studied.
 - 📈 **Progress Charts:** Words learned per week and accuracy per skill over the last 8 weeks, with a table view.
 - 🌙 **Light / Dark Theme:** Switch from the Dashboard or follow your phone's setting.
@@ -127,11 +140,13 @@ The application preserves the exact, authentic dataset of **1,212 numbered acade
 ## 🇮🇷 فارسی (Persian)
 
 ### 📖 معرفی برنامه
-اپلیکیشن **TOEFL 1212** یک سامانه هوشمند، تخصصی و **کاملاً آفلاین** برای یادگیری و تثبیت ماندگار واژگان آزمون بین‌المللی **تافل (TOEFL iBT®)** است.
+اپلیکیشن **TOEFL 35** (نام قبلی: TOEFL 1212) یک سامانه هوشمند، تخصصی و **کاملاً آفلاین** برای یادگیری و تثبیت ماندگار واژگان آزمون بین‌المللی **تافل (TOEFL iBT®)** است.
 
 این نرم‌افزار مجموعه کامل و اصیل **۱٬۲۱۲ واژه دانشگاهی** استخراج‌شده از فهرست رسمی ۴۶ صفحه‌ای تافل (#۱ تا #۱۲۱۲) را بدون هیچ‌گونه دخل و تصرف حفظ کرده و با به‌کارگیری الگوریتم علمی **تکرار فاصله‌دار تطبیقی (FSRS)**، آزمایشگاه‌های چندگانه مهارت‌آموزی، تنظیم سرعت شنیداری و مربی جمله‌سازی، تسلط پایدار و انتقال مؤثر واژگان به آزمون را تضمین می‌نماید.
 
 ### 🌟 قابلیت‌های کلیدی
+- 🎙️ **استودیوی گفتار:** تمرین بخش Speaking تافل با زمان آمادگی و پاسخ، متن زنده و نمره ۰ تا ۴؛ بررسی تلفظ هر واژه.
+- 📒 **دفترچه اشتباهات، چالش ۶۰ ثانیه‌ای، ویجت صفحه اصلی و کارت پیشرفت قابل اشتراک.**
 - 🎓 **فهرست واژگان آکادمیک (AWL):** هر ۵۷۰ واژه به همراه زیرفهرست‌های ۱ تا ۱۰، تعریف، مترادف و دو جمله نمونه واقعی؛ امکان جابه‌جایی بین TOEFL 1212، AWL یا هر دو.
 - 🌐 **ترجمه فارسی، هندی و چینی:** معنی کوتاه هر واژه به زبان شما روی کارت‌ها و صفحه واژه (از بخش تنظیمات انتخاب کنید).
 - 🔥 **رکورد روزانه، امتیاز (XP) و نشان‌ها:** با هر مرور امتیاز بگیرید، سطح خود را بالا ببرید و ۱۵ نشان باز کنید.
@@ -196,11 +211,13 @@ The application preserves the exact, authentic dataset of **1,212 numbered acade
 ## 🇮🇳 हिन्दी (Hindi)
 
 ### 📖 ऐप का परिचय
-**TOEFL 1212** एक आधुनिक, वैज्ञानिक और **पूर्णतः ऑफ़लाइन** शब्दावली शिक्षण प्रणाली है, जिसे **TOEFL iBT®** परीक्षा की तैयारी कर रहे छात्रों और शोधकर्ताओं के लिए डिज़ाइन किया गया है।
+**TOEFL 35** (पहले TOEFL 1212) एक आधुनिक, वैज्ञानिक और **पूर्णतः ऑफ़लाइन** शब्दावली शिक्षण प्रणाली है, जिसे **TOEFL iBT®** परीक्षा की तैयारी कर रहे छात्रों और शोधकर्ताओं के लिए डिज़ाइन किया गया है।
 
 यह एप्लिकेशन आधिकारिक 46 पृष्ठों की सूची से लिए गए सभी **1,212 क्रमांकित शैक्षणिक शब्दों** (#1 से #1212) की शुद्धता और अखंडता को सुरक्षित रखता है। यह उन्नत **FSRS (फ्री स्पेस्ड रिपीटिशन शेड्यूलर)** एल्गोरिद्म, बहुआयामी अभ्यास प्रयोगशालाओं, उच्चारण गति नियंत्रण और अकादमिक वाक्य प्रशिक्षक के माध्यम से शब्दों की दीर्घकालिक स्मृति सुनिश्चित करता है।
 
 ### 🌟 प्रमुख विशेषताएँ
+- 🎙️ **स्पीकिंग स्टूडियो:** TOEFL स्पीकिंग टास्क, लाइव ट्रांसक्रिप्ट और 0–4 स्कोर; हर शब्द की उच्चारण जाँच।
+- 📒 **गलतियों की नोटबुक, 60-सेकंड चैलेंज, होम-स्क्रीन विजेट और शेयर करने योग्य प्रगति कार्ड।**
 - 🎓 **अकादमिक वर्ड लिस्ट (AWL):** सभी 570 शब्द, सबलिस्ट 1–10, परिभाषा, पर्यायवाची और दो वास्तविक उदाहरण वाक्यों के साथ; TOEFL 1212, AWL या दोनों के बीच एक टैप में बदलें।
 - 🌐 **हिन्दी, फ़ारसी और चीनी अनुवाद:** हर शब्द का छोटा अर्थ आपकी भाषा में, फ़्लैशकार्ड और शब्द पृष्ठ पर (सेटिंग्स में चुनें)।
 - 🔥 **स्ट्रीक, XP और बैज:** हर समीक्षा पर XP कमाएँ, लेवल बढ़ाएँ और 15 बैज अनलॉक करें।
@@ -265,11 +282,13 @@ The application preserves the exact, authentic dataset of **1,212 numbered acade
 ## 🇨🇳 中文 (Chinese / 简体中文)
 
 ### 📖 应用简介
-**TOEFL 1212** 是一款专为 **托福（TOEFL iBT®）** 考生、学术英语学者及英语进阶学习者打造的高效、科学且**完全离线**的词汇记忆系统。
+**TOEFL 35**（原名 TOEFL 1212）是一款专为 **托福（TOEFL iBT®）** 考生、学术英语学者及英语进阶学习者打造的高效、科学且**完全离线**的词汇记忆系统。
 
 本应用完整收录源自托福经典46页官方词汇清单中的全部 **1,212个核心学术词汇**（编号 #1 至 #1212）。系统严格保护原始数据的一致性，搭载先进的 **FSRS 自适应间隔重复记忆算法**，提供7大维度深度技能追踪、听力变速训练营及学术造句教练，帮助考生从“死记硬背”彻底跃升至“学术实战应用”。
 
 ### 🌟 核心功能亮点
+- 🎙️ **口语工作室：** 托福口语任务，实时转写并给出 0–4 分评分；单词发音检测。
+- 📒 **错题本、60 秒挑战、主屏幕小组件和可分享的进度卡片。**
 - 🎓 **学术词汇表（AWL）：** 完整收录570个词及1–10子表，配有释义、同义词和两个真实例句；可一键切换 TOEFL 1212、AWL 或两者合并。
 - 🌐 **中文、波斯语和印地语翻译：** 在闪卡和单词页显示母语简明释义（在设置中选择）。
 - 🔥 **连续打卡、经验值与徽章：** 每次复习获得经验值，升级并解锁15枚徽章。
@@ -350,7 +369,7 @@ gradle :app:assembleDebug
 - **Language:** Kotlin 100% (Coroutines & StateFlow)
 - **Persistence:** Room Database v5 with step-by-step schema migrations (progress is kept across updates)
 - **Background work:** WorkManager for daily study reminders
-- **Pre-built APK:** [`export/Toefl_1212_v1.3.1-debug.apk`](https://github.com/3majn5/Toefl-1212/raw/main/export/Toefl_1212_v1.3.1-debug.apk)
+- **Pre-built APK:** [`export/TOEFL_35_v1.4.0-debug.apk`](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk)
 
 ---
 
