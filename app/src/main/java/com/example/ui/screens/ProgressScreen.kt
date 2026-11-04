@@ -75,12 +75,13 @@ fun ProgressScreen(
     val progress by viewModel.weeklyProgress.collectAsState()
     val stats by viewModel.studyStats.collectAsState()
     val bestChallenge by viewModel.bestChallenge.collectAsState()
+    val wordsStudied by viewModel.wordsStudied.collectAsState()
     val shareContext = androidx.compose.ui.platform.LocalContext.current
     val cardData = com.example.util.ProgressCardData(
         streakDays = game.streakDays,
         level = game.level,
         totalXp = game.totalXp,
-        wordsLearned = stats.learningCount + stats.reviewingCount + stats.masteredCount,
+        wordsLearned = wordsStudied,
         wordsMastered = stats.masteredCount,
         badges = game.earnedBadges.size,
         bestChallenge = bestChallenge

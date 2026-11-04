@@ -371,6 +371,11 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
     private val _bestChallenge = MutableStateFlow(challengePrefs.getInt("challenge_best", 0))
     val bestChallenge: StateFlow<Int> = _bestChallenge.asStateFlow()
 
+    /** A new challenge starts with a fresh combo, independent of earlier practice. */
+    fun startChallenge() {
+        _combo.value = 0
+    }
+
     fun nextChallengeQuestion(): QuizQuestion? {
         val pool = allEntries.value
         if (pool.size < 4) return null
@@ -423,6 +428,14 @@ class VocabViewModel(application: Application) : AndroidViewModel(application) {
                 }
         }
     }
+
+    /**
+     * Words studied in any mode: reviewed with flashcards or answered in a quiz, lab or challenge.
+     * Matches what the "words learned per week" chart counts.
+     */
+    val wordsStudied: StateFlow<Int> = everyEntry
+        .map { list -> list.count { it.studyStatus != StudyStatus.NEW || it.totalAttempts > 0 } }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), 0)
 
     // ── Progress charts ─────────────────────────────────────────
     private val _weeklyProgress = MutableStateFlow<WeeklyProgress?>(null)

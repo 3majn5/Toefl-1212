@@ -96,6 +96,7 @@ fun TimedChallengeScreen(viewModel: VocabViewModel, onNavigateBack: () -> Unit) 
     fun start() {
         score = 0; answered = 0; remaining = CHALLENGE_MILLIS; picked = null; newRecord = false
         previousBest = best
+        viewModel.startChallenge()
         question = viewModel.nextChallengeQuestion()
         state = ChallengeState.PLAYING
     }

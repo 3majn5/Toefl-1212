@@ -75,7 +75,7 @@ object ProgressCard {
         val tiles = listOf(
             "Level" to "${data.level}",
             "Total XP" to "%,d".format(data.totalXp),
-            "Words learned" to "%,d".format(data.wordsLearned),
+            "Words studied" to "%,d".format(data.wordsLearned),
             "Mastered" to "%,d".format(data.wordsMastered)
         )
         val tileW = (w - 80f * 2 - 40f) / 2
@@ -113,7 +113,7 @@ object ProgressCard {
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(
                 Intent.EXTRA_TEXT,
-                if (data.wordsLearned > 0) "🔥 ${data.streakDays}-day streak and ${data.wordsLearned} words learned on TOEFL 35! https://github.com/3majn5/Toefl-1212"
+                if (data.wordsLearned > 0) "🔥 ${data.streakDays}-day streak and ${data.wordsLearned} words studied on TOEFL 35! https://github.com/3majn5/Toefl-1212"
                 else "🔥 ${data.streakDays}-day streak and ${data.totalXp} XP on TOEFL 35! https://github.com/3majn5/Toefl-1212"
             )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

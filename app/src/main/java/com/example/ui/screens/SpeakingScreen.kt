@@ -201,7 +201,7 @@ private fun SpeakingTask(viewModel: VocabViewModel, listener: SpeechListener) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         AnimatedEntrance(index = 0) {
             Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.Transparent), modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.background(Brush.linearGradient(listOf(BrandIndigo, Lavender)))) {
+                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(BrandIndigo, Lavender)))) {
                     LiquidBlobs(colors = listOf(WarmCoral, SkyBlue), modifier = Modifier.matchParentSize())
                     Column(Modifier.padding(20.dp)) {
                         Text("TASK ${promptIndex % SpeakingCoach.PROMPTS.size + 1} · ${prompt.prepSeconds}s prep · ${prompt.speakSeconds}s answer", color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
