@@ -1119,7 +1119,7 @@ private fun MysteryChestCard(reward: com.example.util.ChestReward?, onOpen: () -
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         modifier = modifier.fillMaxWidth().bouncyClickable { if (reward == null) onOpen() }
     ) {
-        Box(modifier = Modifier.background(Brush.linearGradient(listOf(SunnyAmber, WarmCoral)))) {
+        Box(modifier = Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(SunnyAmber, WarmCoral)))) {
             LiquidBlobs(colors = listOf(Color.White, SunnyAmber, Lavender), modifier = Modifier.matchParentSize(), periodMillis = 8000)
             Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -1163,7 +1163,7 @@ private fun ChallengeBanner(best: Int, onClick: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         modifier = Modifier.fillMaxWidth().bouncyClickable(onClick)
     ) {
-        Box(modifier = Modifier.background(Brush.horizontalGradient(listOf(WarmCoral, SunnyAmber)))) {
+        Box(modifier = Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(WarmCoral, SunnyAmber)))) {
             LiquidBlobs(colors = listOf(Lavender, SoftRose), modifier = Modifier.matchParentSize(), periodMillis = 9000)
             Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("⚡", fontSize = 34.sp)

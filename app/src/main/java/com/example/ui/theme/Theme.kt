@@ -90,6 +90,18 @@ fun MyApplicationTheme(
         else -> LightColorScheme
     }
 
+    // Keep status/navigation bar icons readable when the in-app theme differs from the phone's
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) {
+        androidx.compose.runtime.SideEffect {
+            val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
+            androidx.core.view.WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
+    }
+
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,

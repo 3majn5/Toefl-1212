@@ -11,19 +11,46 @@
 
 ---
 
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="docs/screenshots/dashboard.png" width="200" alt="Dashboard: streak, quests & challenge"><br><sub><b>Dashboard: streak, quests & challenge</b></sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/quiz-combo.png" width="200" alt="Quiz with combo multiplier"><br><sub><b>Quiz with combo multiplier</b></sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/challenge.png" width="200" alt="60-Second Challenge"><br><sub><b>60-Second Challenge</b></sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/flashcard.png" width="200" alt="FSRS flashcards"><br><sub><b>FSRS flashcards</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img src="docs/screenshots/speaking-task.png" width="200" alt="Speaking Studio: live answer"><br><sub><b>Speaking Studio: live answer</b></sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/speaking-feedback.png" width="200" alt="Speaking feedback & score"><br><sub><b>Speaking feedback & score</b></sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/mistake-notebook.png" width="200" alt="Mistake Notebook"><br><sub><b>Mistake Notebook</b></sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/share-card.png" width="200" alt="Shareable progress card"><br><sub><b>Shareable progress card</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img src="docs/screenshots/dark-mode.png" width="200" alt="Dark mode with the AWL list"><br><sub><b>Dark mode with the AWL list</b></sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/widget.png" width="200" alt="Home-screen widget"><br><sub><b>Home-screen widget</b></sub></td>
+  </tr>
+</table>
+
+---
+
 ## 📥 Download
 
-[![Download APK](https://img.shields.io/badge/Download%20APK-v1.4.0-5B5BD6?style=for-the-badge&logo=android&logoColor=white)](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk)
+[![Download APK](https://img.shields.io/badge/Download%20APK-v1.4.1-5B5BD6?style=for-the-badge&logo=android&logoColor=white)](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.1-debug.apk)
 
-**[⬇️ Download TOEFL 35 v1.4.0 for Android (APK, ~18 MB)](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk)** — free, works offline, Android 7.0 or newer.
+**[⬇️ Download TOEFL 35 v1.4.1 for Android (APK, ~18 MB)](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.1-debug.apk)** — free, works offline, Android 7.0 or newer.
 
 **How to install:** open the downloaded file on your phone. If Android asks, allow installs from your browser or file manager ("Install unknown apps"), then tap **Install**.
 
-> **Updating from v1.0.x?** That version was signed with a different key, so Android can't install over it. First open **Backup & Export → Copy Full JSON Backup** in the old app and save the text, uninstall it, install v1.4.0, then paste the backup in **Backup & Export** to restore your progress. Updating from v1.1.0 or later works directly.
+> **Updating from v1.0.x?** That version was signed with a different key, so Android can't install over it. First open **Backup & Export → Copy Full JSON Backup** in the old app and save the text, uninstall it, install v1.4.1, then paste the backup in **Backup & Export** to restore your progress. Updating from v1.1.0 or later works directly.
 
-- 🇮🇷 **دانلود:** [نسخه ۱٫۴٫۰ اندروید را دریافت کنید](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk) — فایل را روی گوشی باز کنید و در صورت درخواست، «نصب برنامه‌های ناشناس» را مجاز کنید.
-- 🇮🇳 **डाउनलोड:** [Android के लिए v1.4.0 डाउनलोड करें](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk) — फ़ाइल खोलें और पूछे जाने पर "अज्ञात ऐप्स इंस्टॉल करें" की अनुमति दें।
-- 🇨🇳 **下载：** [下载 Android 版 v1.4.0](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk) — 在手机上打开文件，如有提示请允许“安装未知应用”。
+- 🇮🇷 **دانلود:** [نسخه ۱٫۴٫۱ اندروید را دریافت کنید](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.1-debug.apk) — فایل را روی گوشی باز کنید و در صورت درخواست، «نصب برنامه‌های ناشناس» را مجاز کنید.
+- 🇮🇳 **डाउनलोड:** [Android के लिए v1.4.1 डाउनलोड करें](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.1-debug.apk) — फ़ाइल खोलें और पूछे जाने पर "अज्ञात ऐप्स इंस्टॉल करें" की अनुमति दें।
+- 🇨🇳 **下载：** [下载 Android 版 v1.4.1](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.1-debug.apk) — 在手机上打开文件，如有提示请允许“安装未知应用”。
+
+### 🛠️ v1.4.1
+- Fixed: the progress card counted only flashcard words; it now counts every word you've studied, matching the weekly chart
+- Fixed: status-bar icons were hard to see in dark mode, a 60-Second Challenge could start with a leftover combo, and the mystery-chest card didn't fill its width
 
 ### ✨ What's new in v1.4.0 — now called **TOEFL 35**
 - 🎙️ **Speaking Studio**: TOEFL-style speaking tasks with 15 s prep and a 45 s answer, live transcript, and a 0–4 score with feedback on pace, fillers, structure and target words
@@ -369,7 +396,7 @@ gradle :app:assembleDebug
 - **Language:** Kotlin 100% (Coroutines & StateFlow)
 - **Persistence:** Room Database v5 with step-by-step schema migrations (progress is kept across updates)
 - **Background work:** WorkManager for daily study reminders
-- **Pre-built APK:** [`export/TOEFL_35_v1.4.0-debug.apk`](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.0-debug.apk)
+- **Pre-built APK:** [`export/TOEFL_35_v1.4.1-debug.apk`](https://github.com/3majn5/Toefl-1212/raw/main/export/TOEFL_35_v1.4.1-debug.apk)
 
 ---
 
